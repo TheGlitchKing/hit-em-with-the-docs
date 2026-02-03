@@ -6,6 +6,12 @@
 [![npm version](https://img.shields.io/npm/v/hit-em-with-the-docs.svg)](https://www.npmjs.com/package/hit-em-with-the-docs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+
+> [!IMPORTANT]
+> You will still need to  remember to invoke this plugin for document creation! As projects continue to scale, documetnation will need to be created / maintained. a user will still need to invoke this plugin or ask and LLM for that documentation to be created for your > feature / workflow / infrastructure, or create it yourself using the commands from this plugin. This plugin needs to be invoked to either create / update / maintain it all. 
+
+
+
 ## Summary
 
 Documentation often becomes messy and hard to find as projects grow. Important information gets scattered across many files, links break when files move, and nobody knows if docs are up to date. Hit-em-with-the-docs solves these problems by organizing your documentation into 15 clear categories, checking links automatically, and making sure every document has proper information about what it contains. It keeps your documentation healthy without you having to think about it.
