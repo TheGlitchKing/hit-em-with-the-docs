@@ -1,24 +1,82 @@
 # hit-em-with-the-docs
 
-> Self-managing documentation system with hierarchical structure, intelligent automation, pattern discovery, and agent orchestration.
+> A self-managing documentation system that keeps your docs organized, accurate, and easy to find.
 
 [![GitHub Action](https://img.shields.io/badge/GitHub-Action-blue?logo=github)](https://github.com/marketplace/actions/hit-em-with-the-docs)
 [![npm version](https://img.shields.io/npm/v/hit-em-with-the-docs.svg)](https://www.npmjs.com/package/hit-em-with-the-docs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## Summary
+
+Documentation often becomes messy and hard to find as projects grow. Important information gets scattered across many files, links break when files move, and nobody knows if docs are up to date. Hit-em-with-the-docs solves these problems by organizing your documentation into 15 clear categories, checking links automatically, and making sure every document has proper information about what it contains. It keeps your documentation healthy without you having to think about it.
+
+## Operational Summary
+
+The plugin creates a special folder called `.documentation` in your project with 15 organized sections (called "domains") like security, API, database, and testing. Each document gets tagged with metadata - information like title, category, and last update date - that helps you and the system understand what it's about.
+
+The system has built-in tools that automatically check your documentation for problems. It finds broken links between documents, makes sure metadata is complete, and verifies files are named correctly. You can run these checks manually or set them up to run automatically in your build process. The plugin can also scan your actual code to discover patterns and create documentation from what it finds. Everything is designed to work with markdown files and integrates seamlessly with GitHub Actions for continuous monitoring.
+
 ## Features
 
-- **Hierarchical Architecture**: 15-domain structure with 85% token reduction
-- **22-Field Metadata System**: Comprehensive YAML frontmatter with auto-generation
-- **Intelligent Automation**: Metadata sync, link checking, auditing, and maintenance
-- **Pattern Discovery**: Extract coding patterns, anti-patterns, and standards from your codebase
-- **Self-Healing**: Auto-detect and fix documentation issues
-- **GitHub Action**: Automate documentation health checks in CI/CD
-- **CLI Tool**: Full-featured command-line interface
+- **Organized Structure**: Automatically creates 15 specialized categories for different types of documentation
+- **Smart Classification**: Analyzes your documents and automatically puts them in the right category
+- **Metadata Management**: Tracks 22 different pieces of information about each document (title, status, tags, etc.)
+- **Link Checking**: Finds and reports broken links between documents
+- **Auto-Fixing**: Can automatically repair common problems like missing metadata
+- **Pattern Discovery**: Scans your code to find and document coding patterns
+- **Health Reports**: Generates reports showing the overall quality of your documentation
+- **GitHub Integration**: Works as a GitHub Action for automated checks
+- **CLI Tool**: Full command-line interface for all operations
+- **Search Functionality**: Quick search across all documentation
 
 ## Quick Start
 
-### GitHub Action
+### Installation Methods
+
+#### Method 1: Global Installation (Recommended for CLI use)
+
+This method installs the tool on your computer so you can use it anywhere.
+
+1. Open your terminal or command prompt
+2. Type this command and press Enter:
+   ```bash
+   npm install -g hit-em-with-the-docs
+   ```
+3. Wait for the installation to complete
+4. Verify it worked by typing:
+   ```bash
+   hewtd --version
+   ```
+5. You should see the version number
+
+#### Method 2: Project Installation
+
+This method installs the tool only for your current project.
+
+1. Open your terminal in your project folder
+2. Type this command:
+   ```bash
+   npm install --save-dev hit-em-with-the-docs
+   ```
+3. Add a script to your `package.json`:
+   ```json
+   "scripts": {
+     "docs": "hewtd"
+   }
+   ```
+4. Use it with: `npm run docs`
+
+#### Method 3: One-Time Use (No Installation)
+
+You can run the tool without installing it using `npx`:
+
+```bash
+npx hit-em-with-the-docs <command>
+```
+
+#### Method 4: GitHub Action
+
+Add this to your repository at `.github/workflows/docs-check.yml`:
 
 ```yaml
 name: Documentation Health Check
@@ -28,7 +86,7 @@ on:
     paths:
       - '.documentation/**'
   schedule:
-    - cron: '0 16 * * 5'  # Weekly on Fridays
+    - cron: '0 16 * * 5'  # Every Friday at 4 PM
 
 jobs:
   docs-check:
@@ -37,458 +95,394 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Documentation Health Check
-        uses: username/hit-em-with-the-docs@v1
+        uses: TheGlitchKing/hit-em-with-the-docs@v1
         with:
           command: maintain
           mode: quick
           fail-on-error: true
-
-      - name: Upload Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: docs-health-report
-          path: .documentation/reports/
 ```
 
-### CLI Installation
+### Initializing the Plugin
+
+After installing, you need to create the documentation structure:
 
 ```bash
-# npm
-npm install -g hit-em-with-the-docs
-
-# Or use npx
-npx hit-em-with-the-docs <command>
-```
-
-### Initialize Documentation
-
-```bash
-# Create .documentation structure with all 15 domains
-npx hit-em-with-the-docs init
-```
-
-This creates:
-```
-.documentation/
-├── INDEX.md           # Navigation hub
-├── REGISTRY.md        # Quick reference
-├── README.md          # Overview
-├── security/          # Security domain
-│   ├── INDEX.md
-│   └── REGISTRY.md
-├── api/               # API domain
-├── devops/            # DevOps domain
-├── database/          # Database domain
-├── standards/         # Standards domain
-└── ... (15 domains total)
-```
-
-## CLI Commands Reference
-
-### `init` - Initialize Documentation Structure
-
-**When to use**: First-time setup when starting documentation in a new project.
-
-**What it does**: Creates the complete 15-domain hierarchical structure with INDEX/REGISTRY files.
-
-```bash
-# Initialize in current directory
+# Create .documentation folder with all 15 categories
 hewtd init
 
-# Initialize in specific path
-hewtd init --path ./my-docs
-
-# Choose template
-hewtd init --template minimal
+# Or specify a different location
+hewtd init --path ./docs
 ```
 
-**Output**: Creates 53 files/directories including:
-- Root INDEX.md, REGISTRY.md, README.md
-- 15 domain folders (security, api, devops, etc.)
-- Each domain gets INDEX.md + REGISTRY.md
-- Empty reports/ and drafts/ folders
-
-**Use cases**:
-- Starting documentation from scratch
-- Migrating from flat documentation structure
-- Setting up new projects with best practices
+This creates a folder structure like:
+```
+.documentation/
+├── INDEX.md           # Main navigation page
+├── REGISTRY.md        # Quick reference list
+├── README.md          # Overview of the documentation
+├── security/          # Security-related docs
+├── api/               # API documentation
+├── database/          # Database docs
+├── testing/           # Test documentation
+└── ... (11 more categories)
+```
 
 ---
 
-### `maintain` - Full Documentation Maintenance
+## CLI Commands
 
-**When to use**: Weekly/monthly maintenance, pre-release checks, or after major documentation updates.
+### Basic Commands
 
-**What it does**: Runs complete maintenance workflow (metadata sync + link check + audit) and generates health report.
+| Command | Description |
+|---------|-------------|
+| `hewtd init` | Create the documentation structure |
+| `hewtd maintain` | Run full health check and maintenance |
+| `hewtd integrate <file>` | Add a document to the system |
+| `hewtd list` | Show all documentation categories |
+| `hewtd search <query>` | Search for content in documentation |
 
+### Maintenance Commands
+
+| Command | Description |
+|---------|-------------|
+| `hewtd metadata-sync` | Update and fix document metadata |
+| `hewtd link-check` | Find broken links |
+| `hewtd audit` | Check documentation quality |
+| `hewtd report <type>` | Generate reports (health, audit, links) |
+
+### Discovery Commands
+
+| Command | Description |
+|---------|-------------|
+| `hewtd discover patterns` | Find coding patterns in your codebase |
+| `hewtd discover anti-patterns` | Find problematic code patterns |
+| `hewtd discover standards` | Extract coding standards from code |
+| `hewtd discover dependencies` | Analyze project dependencies |
+
+---
+
+### Command Details and Examples
+
+#### `hewtd init` - Create Documentation Structure
+
+**When to use**: First time setting up documentation in a project.
+
+**What it does**: Creates the `.documentation` folder with 15 organized categories and starter files.
+
+**Examples**:
 ```bash
-# Full maintenance (recommended weekly)
+# Basic initialization
+hewtd init
+
+# Custom location
+hewtd init --path ./my-docs
+
+# Overwrite existing structure
+hewtd init --force
+```
+
+**What to expect**: You'll see 53 files and folders created. Each category gets an INDEX.md (table of contents) and REGISTRY.md (quick reference list).
+
+---
+
+#### `hewtd maintain` - Full Documentation Maintenance
+
+**When to use**: Weekly checkups, before releases, or after adding lots of documentation.
+
+**What it does**: Runs a complete health check - fixes metadata, checks links, and creates a report with a score.
+
+**Examples**:
+```bash
+# Full maintenance (checks everything)
 hewtd maintain
 
-# Quick mode - skip link checking (faster for daily checks)
+# Quick mode (skips link checking - faster)
 hewtd maintain --quick
 
-# Auto-fix issues automatically
+# Quick mode with auto-fix
 hewtd maintain --quick --fix
 
-# Specific path
+# Specific folder
 hewtd maintain --path ./docs
 ```
 
-**Output**:
-- Health score (0-100)
-- Fixed metadata issues
-- Broken link detection
-- Audit compliance report
-- Saved to `.documentation/reports/`
+**What to expect**:
+- See a health score from 0 to 100
+- Get a list of issues found
+- See how many issues were fixed
+- Find a detailed report in `.documentation/reports/`
 
-**Use cases**:
-- Weekly documentation health checks
-- Pre-release validation
-- After adding multiple new documents
-- CI/CD pipeline integration
-- Preparing for documentation review
-
-**Recommended schedule**:
-- Daily: `hewtd maintain --quick` (fast check)
-- Weekly: `hewtd maintain --quick --fix` (auto-fix issues)
-- Monthly: `hewtd maintain --fix` (full with link checking)
+**Use it on**: Your entire documentation folder, especially before merging code or releasing.
 
 ---
 
-### `integrate` - Auto-Classify and Place Documents
+#### `hewtd integrate` - Add Documents to the System
 
-**When to use**: Adding existing documents to the hierarchical structure.
+**When to use**: Adding new documentation files or organizing existing ones.
 
-**What it does**: Analyzes content, detects appropriate domain, generates metadata, adds frontmatter, and moves file.
+**What it does**: Reads your document, figures out which category it belongs in, adds metadata, and moves it to the right place.
 
+**Examples**:
 ```bash
-# Integrate a single document
-hewtd integrate ./docs/my-guide.md
+# Add a single document
+hewtd integrate ./my-guide.md
 
-# Preview without changes
-hewtd integrate ./docs/my-guide.md --dry-run
+# Preview where it would go (doesn't actually move it)
+hewtd integrate ./my-guide.md --dry-run
 
-# Auto mode (no prompts)
-hewtd integrate ./docs/my-guide.md --auto
+# Automatic mode (no questions asked)
+hewtd integrate ./my-guide.md --auto
 
-# Force integration even with duplicates
-hewtd integrate ./docs/my-guide.md --force
-```
-
-**What it analyzes**:
-- Content keywords (security, API, testing, etc.)
-- Document structure (guide, reference, example)
-- Audience level (developers, admin)
-- Automatically generates 22-field metadata
-
-**Output**:
-- Detected domain with confidence %
-- Generated metadata (title, tier, domains, status)
-- Target path in .documentation structure
-- File moved with frontmatter added
-
-**Use cases**:
-- Migrating existing documentation
-- Adding new guides without manual classification
-- Organizing scattered documentation files
-- Bulk import from legacy systems
-
-**Example workflow**:
-```bash
-# Preview where documents will go
-for file in docs/*.md; do
-  hewtd integrate "$file" --dry-run
-done
-
-# If happy with classification, integrate them
-for file in docs/*.md; do
+# Add multiple documents
+for file in old-docs/*.md; do
   hewtd integrate "$file" --auto
 done
 ```
 
+**What to expect**: The tool will read your document and suggest a category like "security" or "api" based on its content. It adds metadata and moves the file.
+
+**Use it on**: New markdown files you want to add to your documentation system.
+
 ---
 
-### `metadata-sync` - Sync Metadata Across Documents
+#### `hewtd metadata-sync` - Update Document Information
 
-**When to use**: After manual edits, when metadata is missing, or for bulk metadata updates.
+**When to use**: After manually editing files or when metadata is missing.
 
-**What it does**: Validates, generates missing fields, calculates read times, and ensures consistency.
+**What it does**: Checks all documents for proper metadata and fills in missing information automatically.
 
+**Examples**:
 ```bash
-# Sync all metadata (dry-run by default)
+# Check everything (preview only)
 hewtd metadata-sync
 
-# Auto-fix missing fields
+# Fix all issues
 hewtd metadata-sync --fix
 
-# Specific domain only
+# Only check security documentation
 hewtd metadata-sync --domain security --fix
-
-# Specific path
-hewtd metadata-sync --path ./docs --fix
 ```
 
-**Auto-generates**:
-- `word_count` - Character analysis
-- `estimated_read_time` - Based on word count
-- `last_validated` - Current date
-- Missing required fields with sensible defaults
+**What to expect**: Sees how many documents have complete information, automatically adds things like word count and reading time.
 
-**Validates**:
-- Required fields present (title, tier, domains, status)
-- Date formats (YYYY-MM-DD)
-- Domain names match available domains
-- Tier values (guide|standard|example|reference|admin)
-
-**Use cases**:
-- After bulk document edits
-- Standardizing metadata across team
-- Fixing validation errors
-- Preparing for audits
+**Use it on**: The entire `.documentation` folder or specific categories.
 
 ---
 
-### `link-check` - Validate Internal Links
+#### `hewtd link-check` - Find Broken Links
 
-**When to use**: Before releases, after restructuring, or monthly maintenance.
+**When to use**: Before releases, after moving files, or monthly maintenance.
 
-**What it does**: Checks all internal markdown links, detects broken references, and generates topology report.
+**What it does**: Checks every link in your documentation to make sure it points to a real file.
 
+**Examples**:
 ```bash
 # Check all links
 hewtd link-check
 
-# Specific domain
+# Check specific category
 hewtd link-check --domain api
 
-# Generate detailed link topology report
+# Generate detailed report
 hewtd link-check --report
-
-# Specific path
-hewtd link-check --path ./docs
 ```
 
-**Detects**:
-- Broken internal links
-- Links to non-existent files
-- Case-sensitivity issues
-- Cross-domain link patterns
+**What to expect**: See a list of broken links with file names and line numbers. The report saves to `.documentation/reports/`.
 
-**Output**:
-- Total links checked
-- Broken links with file locations
-- Link topology (cross-domain relationships)
-- Saved to `.documentation/reports/`
-
-**Use cases**:
-- Pre-release validation
-- After renaming/moving files
-- Monthly documentation health checks
-- Detecting orphaned documents
+**Use it on**: Your entire documentation, especially after reorganizing files.
 
 ---
 
-### `audit` - Documentation Compliance Audit
+#### `hewtd audit` - Check Documentation Quality
 
-**When to use**: Code reviews, quality gates, or establishing baselines.
+**When to use**: Quality checks, code reviews, or establishing a baseline.
 
-**What it does**: Audits against naming conventions, file placement, metadata completeness, and best practices.
+**What it does**: Checks if files follow naming rules, are in the right categories, and have complete metadata.
 
+**Examples**:
 ```bash
-# Audit all documentation
+# Audit everything
 hewtd audit
 
-# Specific domain
-hewtd audit --domain standards
-
-# Show only failures
+# Only show problems
 hewtd audit --issues-only
 
-# Generate detailed audit report
+# Audit specific category
+hewtd audit --domain standards
+
+# Generate full report
 hewtd audit --report
 ```
 
-**Checks**:
-- File naming conventions (kebab-case)
-- Correct domain placement
-- Metadata completeness (required fields)
-- Tier appropriateness
-- Frontmatter formatting
+**What to expect**: Get a quality score and detailed list of what needs fixing.
 
-**Scoring**:
-- Overall health score (0-100)
-- Per-domain compliance %
-- Metadata completeness %
-- Naming compliance %
-
-**Use cases**:
-- Establishing documentation quality baseline
-- Pre-merge validation in PRs
-- Quarterly documentation reviews
-- Compliance reporting
+**Use it on**: The entire documentation system to measure quality.
 
 ---
 
-### `discover` - Pattern Discovery from Codebase
+#### `hewtd discover patterns` - Find Code Patterns
 
-**When to use**: Documenting existing patterns, creating style guides, or architectural documentation.
+**When to use**: Creating architecture documentation, onboarding guides, or style guides.
 
-**What it does**: Analyzes codebase to extract patterns, anti-patterns, standards, and dependencies.
+**What it does**: Scans your code and creates documentation about patterns it finds (like Singleton, Factory, Repository).
 
+**Examples**:
 ```bash
-# Discover coding patterns (singleton, factory, repository, etc.)
+# Find all patterns
 hewtd discover patterns
 
-# Filter by language
+# Only TypeScript files
 hewtd discover patterns --language typescript
 
-# Find anti-patterns and code smells
-hewtd discover anti-patterns
-
-# Extract implicit coding standards
-hewtd discover standards
-
-# Analyze package dependencies
-hewtd discover dependencies
-
-# Save to specific domain
-hewtd discover patterns --output standards/
+# Scan specific folder
+hewtd discover patterns --root ./src
 ```
 
-**Pattern types detected**:
-- **Patterns**: Singleton, Factory, Repository, Service Layer, etc.
-- **Anti-patterns**: God objects, circular dependencies, etc.
-- **Standards**: Naming conventions, file organization, etc.
-- **Dependencies**: Package usage, version patterns, etc.
+**What to expect**: Creates markdown files with examples of patterns found in your code, including file locations.
 
-**Output**: Markdown files with:
-- Pattern name and description
-- Code examples
-- Occurrence count
-- File locations
-- Recommendations
-
-**Use cases**:
-- Creating architecture documentation from code
-- Generating style guides automatically
-- Onboarding documentation
-- Technical debt identification
-- Code review guidelines
+**Use it on**: Your source code folders (automatically skips node_modules and other common folders).
 
 ---
 
-### `list` - List All Domains
+#### `hewtd list` - Show All Categories
 
-**When to use**: Quick reference, exploring structure, or scripting.
+**When to use**: Quick reference to see available categories.
 
-**What it does**: Displays all 15 domains with descriptions, categories, and priorities.
+**What it does**: Displays all 15 categories with descriptions.
 
+**Example**:
 ```bash
-# List all domains
 hewtd list
-
-# JSON output for scripting
-hewtd list --format json
 ```
 
-**Output**: Table with:
-- Domain name
-- Category (core, features, development, advanced)
-- Load priority (1-10, higher = more important)
-- Description
-
-**Use cases**:
-- Learning the domain structure
-- Deciding where to place new documentation
-- Quick reference during writing
-- Scripting and automation
+**What to expect**: A table showing category names, priority, and descriptions.
 
 ---
 
-### `search` - Search Documentation
+#### `hewtd search` - Find Documentation
 
-**When to use**: Finding specific information, cross-referencing, or validating coverage.
+**When to use**: Looking for specific information across all docs.
 
-**What it does**: Full-text search across all documentation with relevance ranking.
+**What it does**: Searches through all documentation files for your search term.
 
+**Examples**:
 ```bash
-# Search all documentation
+# Basic search
 hewtd search "authentication"
 
-# Search in specific domain
+# Search in specific category
 hewtd search "authentication" --domain security
-
-# Case-sensitive search
-hewtd search "Authentication" --case-sensitive
-
-# Search in titles only
-hewtd search "API" --titles-only
 ```
 
-**Output**:
-- Matching documents with relevance score
-- Context snippets
-- File paths
-- Domain classification
+**What to expect**: List of files containing your search term, sorted by relevance.
 
-**Use cases**:
-- Finding existing documentation on a topic
-- Checking for duplicate content
-- Researching before writing new docs
-- Validating documentation coverage
+**Use it on**: Any topic you need to find in your documentation.
 
 ---
 
-### `report` - Generate Reports
+#### `hewtd report` - Generate Reports
 
-**When to use**: Dashboards, metrics, or stakeholder updates.
+**When to use**: Weekly metrics, stakeholder updates, or dashboards.
 
-**What it does**: Generates comprehensive reports in markdown or JSON format.
+**What it does**: Creates comprehensive reports in markdown or JSON format.
 
+**Examples**:
 ```bash
-# Health report (overall documentation health)
+# Health report
 hewtd report health
 
-# Audit report (compliance and issues)
+# Audit report
 hewtd report audit
 
 # Link topology report
 hewtd report links
 
-# Export as JSON for dashboards
+# JSON output for automation
 hewtd report health --format json
 ```
 
-**Report types**:
+**What to expect**: Detailed report saved to `.documentation/reports/` with scores, statistics, and recommendations.
 
-**Health Report**:
-- Overall health score
-- Domain statistics
-- Document counts per tier
-- Metadata completeness
-- Recent changes
+**Use it on**: Your documentation system to get metrics and trends.
 
-**Audit Report**:
-- Compliance by domain
-- Critical issues
-- Warnings
-- Recommendations
-- Historical trends
+---
 
-**Link Report**:
-- Total links analyzed
-- Broken links by file
-- Cross-domain link patterns
-- Link topology visualization
-- Orphaned documents
+## Claude Code Integration
 
-**Use cases**:
-- Weekly documentation metrics
-- Stakeholder reporting
-- Trend analysis
-- Quality dashboards
-- CI/CD reporting
+This tool works as a Claude Code plugin to help Claude understand and work with your documentation.
+
+### Available Claude Commands
+
+These commands can be used in conversation with Claude when the plugin is installed:
+
+| Command | Description |
+|---------|-------------|
+| `/docs load <domain>` | Load a specific category of documentation |
+| `/docs list` | Show all documentation categories |
+| `/docs search <query>` | Search through documentation |
+| `/docs stats` | Display documentation statistics |
+| `/docs maintain` | Run maintenance checks |
+
+### Setting Up Claude Integration
+
+Create or update `.claude/CLAUDE.md` in your project:
+
+```markdown
+# Documentation System
+
+This project uses hit-em-with-the-docs for documentation management.
+
+## Available Documentation Commands
+
+- `/docs load <domain>` - Load specific documentation domain
+- `/docs list` - List all available domains
+- `/docs search <query>` - Search documentation
+- `/docs stats` - Show documentation statistics
+- `/docs maintain` - Run documentation maintenance
+
+## Documentation Structure
+
+Documentation is organized into 15 domains:
+- security: Authentication, authorization, security practices
+- api: API endpoints and specifications
+- database: Database schema and queries
+- testing: Test strategies and patterns
+- And 11 more specialized categories
+```
+
+### How to Use with Claude
+
+**Loading documentation**:
+```
+You: /docs load security
+Claude: [Loads all security-related documentation and can answer questions about it]
+```
+
+**Searching documentation**:
+```
+You: /docs search authentication
+Claude: [Shows files containing "authentication"]
+```
+
+**Getting statistics**:
+```
+You: /docs stats
+Claude: [Shows health score, document counts, recent updates]
+```
+
+**Running maintenance**:
+```
+You: /docs maintain
+Claude: [Runs health check and reports issues]
+```
+
+**When to use these commands**:
+- Use `/docs load` when asking Claude questions about specific topics
+- Use `/docs search` to find existing documentation before writing new content
+- Use `/docs stats` to check documentation health
+- Use `/docs maintain` before committing changes
+
+**What to expect**: Claude will have full context of your documentation and can answer questions, suggest improvements, or help maintain it.
 
 ---
 
@@ -505,10 +499,10 @@ hewtd maintain --quick
 # 1. Write your document
 vim my-new-guide.md
 
-# 2. Integrate it (auto-classifies and places)
+# 2. Add it to the system
 hewtd integrate my-new-guide.md
 
-# 3. Run quick check
+# 3. Quick check
 hewtd maintain --quick --fix
 ```
 
@@ -521,7 +515,7 @@ hewtd maintain --quick --fix
 cat .documentation/reports/maintenance-*.md
 ```
 
-### Pre-Release Checklist
+### Before Releasing
 ```bash
 # 1. Full maintenance with link checking
 hewtd maintain --fix
@@ -529,139 +523,256 @@ hewtd maintain --fix
 # 2. Generate health report
 hewtd report health
 
-# 3. Ensure health score > 80%
-# 4. Review and commit
+# 3. Make sure score is above 80
+# 4. Commit changes
 ```
 
-### Migrating Existing Docs
+### Migrating Existing Documentation
 ```bash
-# 1. Initialize structure
+# 1. Create structure
 hewtd init
 
-# 2. Preview integration (dry-run)
+# 2. Preview where files will go
 for file in old-docs/*.md; do
   hewtd integrate "$file" --dry-run
 done
 
-# 3. Integrate all documents
+# 3. Integrate all files
 for file in old-docs/*.md; do
   hewtd integrate "$file" --auto
 done
 
-# 4. Run full maintenance
+# 4. Run maintenance
 hewtd maintain --fix
 
-# 5. Review health score
+# 5. Check results
 hewtd report health
 ```
 
-### Creating Architecture Docs from Code
-```bash
-# 1. Discover patterns
-hewtd discover patterns
+---
 
-# 2. Extract standards
-hewtd discover standards
+## Technical Details
 
-# 3. Analyze dependencies
-hewtd discover dependencies
+### Architecture Overview
 
-# 4. Review generated docs in appropriate domains
-cat .documentation/standards/*.md
-cat .documentation/architecture/*.md
+The system is built with TypeScript and organized into several core modules:
+
+```
+src/
+├── cli/              # Command-line interface
+├── core/
+│   ├── audit/        # Documentation quality auditing
+│   ├── discover/     # Code pattern discovery
+│   ├── domains/      # Domain classification system
+│   ├── integrate/    # Document integration
+│   ├── links/        # Link checking and tracking
+│   ├── maintain/     # Maintenance orchestration
+│   └── metadata/     # Metadata management
+├── generators/       # Scaffold and template generation
+├── reports/          # Report generation
+└── utils/            # Shared utilities
 ```
 
-## Domain Structure
+### File Structure
+
+**Root Documentation Files**:
+- `INDEX.md` - Main navigation hub with links to all domains
+- `REGISTRY.md` - Quick reference list of all documents
+- `README.md` - Overview and getting started guide
+
+**Domain Structure**:
+Each of the 15 domains follows this pattern:
+```
+domain-name/
+├── INDEX.md          # Domain table of contents
+├── REGISTRY.md       # Quick reference for this domain
+└── *.md              # Individual documentation files
+```
+
+**Generated Files**:
+```
+.documentation/
+├── reports/          # Health, audit, and link reports
+│   ├── maintenance-YYYYMMDD-HHMMSS.md
+│   ├── audit-YYYYMMDD-HHMMSS.md
+│   └── links-YYYYMMDD-HHMMSS.md
+└── drafts/           # Work-in-progress documents
+```
+
+### Domain System
 
 The system organizes documentation into 15 specialized domains:
 
-| Domain | Description |
-|--------|-------------|
-| `security` | Security, auth, Vault, Keycloak, RLS |
-| `devops` | Deployment, CI/CD, Docker, infrastructure |
-| `database` | Schema, migrations, RLS, queries |
-| `api` | API endpoints, routes, specifications |
-| `standards` | Coding standards (backend, frontend, etc.) |
-| `testing` | Test strategies, fixtures, patterns |
-| `architecture` | System design, patterns, decisions |
-| `features` | Feature implementation guides |
-| `quickstart` | Setup guides, onboarding |
-| `procedures` | Step-by-step operational procedures |
-| `workflows` | Process documentation |
-| `agents` | AI agent documentation |
-| `backups` | Backup/restore guides |
-| `troubleshooting` | Debug guides, common issues |
-| `plans` | Planning documents, roadmaps |
+| Domain | Category | Priority | Description |
+|--------|----------|----------|-------------|
+| `standards` | development | 10 | Coding standards and conventions |
+| `security` | core | 9 | Security, auth, encryption |
+| `quickstart` | features | 9 | Setup and onboarding |
+| `devops` | core | 8 | Deployment and infrastructure |
+| `database` | core | 8 | Schema and queries |
+| `api` | core | 8 | API endpoints and specs |
+| `testing` | development | 7 | Test strategies and patterns |
+| `architecture` | development | 7 | System design and patterns |
+| `features` | features | 6 | Feature implementation guides |
+| `procedures` | features | 6 | Step-by-step operations |
+| `troubleshooting` | advanced | 6 | Debug guides and solutions |
+| `workflows` | features | 5 | Process documentation |
+| `agents` | advanced | 5 | AI agent documentation |
+| `backups` | advanced | 4 | Backup and recovery |
+| `plans` | advanced | 3 | Planning and roadmaps |
 
-## Metadata Schema (22 Fields)
+**Priority System**: Domains with higher priority (1-10 scale) are loaded first by Claude Code and other integrations.
 
-Every document uses a comprehensive YAML frontmatter:
+**Categories**:
+- `core`: Essential project infrastructure
+- `development`: Development practices and patterns
+- `features`: Feature-specific documentation
+- `advanced`: Specialized or less-frequently accessed
 
+### Metadata Schema
+
+Every document includes YAML frontmatter with up to 22 fields:
+
+**Required Fields**:
 ```yaml
----
-# Core Identity (Required)
 title: "Document Title"
 tier: guide|standard|example|reference|admin
 domains: [primary-domain, secondary-domain]
-audience: [all|developers|devops|admin]
-tags: [tag1, tag2]
-
-# Status & Lifecycle (Required)
 status: draft|active|deprecated|archived
-last_updated: 'YYYY-MM-DD'
+```
+
+**Auto-Generated Fields**:
+```yaml
+word_count: 1234                    # Calculated from content
+estimated_read_time: "5 minutes"    # Based on 200 words/minute
+last_validated: '2024-01-15'        # Date of last metadata sync
+```
+
+**Optional Fields**:
+```yaml
+# Discovery
+purpose: "One-sentence description"
+tags: [tag1, tag2, tag3]
+audience: [developers|devops|admin|all]
+related_docs: [./other-doc.md]
+
+# Lifecycle
+last_updated: '2024-01-15'
 version: '1.0.0'
-
-# Discovery & Navigation (Optional)
-purpose: "One-sentence purpose"
-related_docs:
-  - path/to/related.md
-load_priority: 1-10
-
-# Ownership (Optional)
-author: "Name"
-maintainer: "Team"
 review_frequency: monthly|quarterly|annually
 
-# Implementation (Optional)
+# Ownership
+author: "Name"
+maintainer: "Team Name"
+
+# Implementation
 implementation_status: planned|in_progress|complete
 tested: true|false
 production_ready: true|false
-
-# Auto-generated
-estimated_read_time: "X minutes"
-word_count: 1234
-last_validated: 'YYYY-MM-DD'
-backlinks: []
----
+load_priority: 1-10
+backlinks: []  # Auto-generated by link checker
 ```
 
-## GitHub Action Inputs
+### Classification Algorithm
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `command` | Command to run | Yes | `maintain` |
-| `mode` | Execution mode (quick/full/fix) | No | `quick` |
-| `docs-path` | Path to documentation | No | `.documentation` |
-| `domain` | Specific domain to operate on | No | - |
-| `discover-type` | Discovery type | No | `patterns` |
-| `fail-on-error` | Fail on critical errors | No | `false` |
-| `fail-threshold` | Health score threshold | No | `50` |
+The domain classifier uses keyword-based scoring with Levenshtein distance:
 
-## GitHub Action Outputs
+1. **Keyword Matching** (`src/core/domains/classifier.ts`):
+   - Extracts words from document title and content
+   - Scores each domain based on keyword matches
+   - Uses weighted scoring (title matches count more)
 
-| Output | Description |
-|--------|-------------|
-| `health-score` | Documentation health score (0-100) |
-| `total-documents` | Total number of documentation files |
-| `issues-found` | Number of issues found |
-| `issues-fixed` | Number of issues auto-fixed |
-| `broken-links` | Number of broken links |
-| `metadata-compliance` | Percentage with complete metadata |
-| `report-path` | Path to generated report |
+2. **Fuzzy Matching**:
+   - Uses Levenshtein distance for similar words
+   - Catches variations (e.g., "authenticate" matches "authentication")
+   - Configurable similarity threshold
 
-## Configuration
+3. **Confidence Scoring**:
+   - Returns confidence percentage for each domain
+   - Suggests top 3 matches
+   - Falls back to user selection if confidence is low
 
-Create `.hewtd.config.json` in your project root:
+### Link Tracking
+
+The link checker (`src/core/links/checker.ts`) maintains a topology map:
+
+- Parses markdown links in all documents
+- Resolves relative paths
+- Tracks cross-domain references
+- Builds backlink map
+- Detects broken links and orphaned documents
+
+### Maintenance Orchestrator
+
+The maintenance system (`src/core/maintain/orchestrator.ts`) coordinates:
+
+1. **Metadata Sync**: Updates frontmatter across all documents
+2. **Link Check**: Validates internal links (optional in quick mode)
+3. **Audit**: Checks naming conventions and file placement
+4. **Report Generation**: Creates health score and detailed report
+
+Health score calculation:
+- Metadata completeness: 40%
+- Link health: 30%
+- Naming compliance: 20%
+- File placement accuracy: 10%
+
+### GitHub Action
+
+The action (`src/action/index.ts`) wraps the CLI for GitHub workflows:
+
+**Inputs**:
+- `command`: CLI command to run
+- `mode`: Execution mode (quick/full/fix)
+- `docs-path`: Path to documentation
+- `domain`: Specific domain filter
+- `fail-on-error`: Exit code behavior
+- `fail-threshold`: Minimum health score
+
+**Outputs**:
+- `health-score`: Overall quality (0-100)
+- `total-documents`: Document count
+- `issues-found`: Problem count
+- `issues-fixed`: Auto-fixed count
+- `broken-links`: Broken link count
+- `metadata-compliance`: Metadata completeness %
+- `report-path`: Generated report location
+
+### Edge Cases and Handling
+
+**Duplicate Documents**:
+- Detected during integration
+- User prompted to merge or keep separate
+- Can force integration with `--force` flag
+
+**Missing Metadata**:
+- Auto-generated with sensible defaults
+- Required fields must be provided
+- Validation prevents invalid values
+
+**Circular Links**:
+- Detected but not flagged as errors
+- Logged in link topology report
+- Useful for navigation structures
+
+**Large Files**:
+- Configurable size limit (default: 50KB)
+- Warning for oversized documents
+- Suggest splitting into multiple files
+
+**Non-Standard Domains**:
+- Custom domains via configuration
+- Must include keywords and description
+- Integrated into classification system
+
+**Empty Documents**:
+- Flagged in audit
+- Not counted in health score
+- Suggested for removal or completion
+
+### Configuration
+
+Create `.hewtd.config.json` for customization:
 
 ```json
 {
@@ -669,46 +780,84 @@ Create `.hewtd.config.json` in your project root:
   "domains": {
     "custom-domain": {
       "description": "Custom domain description",
-      "keywords": ["keyword1", "keyword2"]
+      "keywords": ["keyword1", "keyword2"],
+      "loadPriority": 5,
+      "category": "features"
     }
   },
   "metadata": {
     "requiredFields": ["title", "tier", "domains", "status"],
-    "autoGenerate": ["word_count", "estimated_read_time"]
+    "autoGenerate": ["word_count", "estimated_read_time", "last_validated"]
   },
   "audit": {
     "namingConvention": "kebab-case",
-    "maxFileSize": 50000
+    "maxFileSize": 50000,
+    "allowedTiers": ["guide", "standard", "example", "reference", "admin"]
   },
   "discover": {
-    "excludePaths": ["node_modules", "dist", "vendor"],
-    "languages": ["typescript", "python", "go"]
+    "excludePaths": ["node_modules", "dist", "vendor", ".git"],
+    "languages": ["typescript", "javascript", "python", "go"],
+    "patterns": {
+      "enabled": true,
+      "minOccurrences": 2
+    }
+  },
+  "links": {
+    "checkExternal": false,
+    "ignorePatterns": ["http://localhost", "*.example.com"]
+  },
+  "reports": {
+    "outputPath": ".documentation/reports",
+    "format": "markdown",
+    "includeTimestamp": true
   }
 }
 ```
 
-## Integration with Claude Code
+### Performance Considerations
 
-This tool can be used as a Claude Code plugin. Add to your project:
+**Large Repositories**:
+- Uses streaming for file reads
+- Parallel processing where possible
+- Configurable concurrency limits
+- Quick mode skips expensive operations
 
-```markdown
-# .claude/CLAUDE.md
+**Memory Usage**:
+- Metadata cached in memory during operations
+- Link topology built incrementally
+- Reports streamed to disk
 
-## Documentation System
+**CI/CD Optimization**:
+- Quick mode recommended for frequent checks
+- Full mode for scheduled/release checks
+- Use `fail-threshold` to allow gradual improvement
 
-Use hit-em-with-the-docs for documentation management:
+---
 
-- `/docs load <domain>` - Load domain documentation
-- `/docs list` - List all domains
-- `/docs search <query>` - Search documentation
-- `/docs stats` - Show statistics
-- `/docs maintain` - Run maintenance
-```
+## Requirements
+
+- Node.js >= 20.0.0
+- npm or yarn
+- Git (for GitHub Action)
 
 ## Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on:
+- Setting up development environment
+- Running tests
+- Code style guidelines
+- Submitting pull requests
 
 ## License
 
 MIT - see [LICENSE](LICENSE) for details.
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/TheGlitchKing/hit-em-with-the-docs/discussions)
+- **Documentation**: This README and `.documentation/` in your project
+
+## Changelog
+
+See [releases](https://github.com/TheGlitchKing/hit-em-with-the-docs/releases) for version history and changes.
