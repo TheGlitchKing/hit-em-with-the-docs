@@ -60,12 +60,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/username/hit-em-with-the-docs.git"
+    "url": "git+https://github.com/TheGlitchKing/hit-em-with-the-docs.git"
   },
   "bugs": {
-    "url": "https://github.com/username/hit-em-with-the-docs/issues"
+    "url": "https://github.com/TheGlitchKing/hit-em-with-the-docs/issues"
   },
-  "homepage": "https://github.com/username/hit-em-with-the-docs#readme",
+  "homepage": "https://github.com/TheGlitchKing/hit-em-with-the-docs#readme",
   "engines": {
     "node": ">=20.0.0"
   },
