@@ -1,0 +1,34 @@
+# Basic documentation health check workflow
+# This workflow runs on every push to the .documentation folder
+
+name: Documentation Health Check
+
+on:
+  push:
+    paths:
+      - '.documentation/**'
+  pull_request:
+    paths:
+      - '.documentation/**'
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Documentation Health Check
+        id: docs-check
+        uses: your-username/hit-em-with-the-docs@v1
+        with:
+          command: maintain
+          mode: quick
+          fail-on-error: true
+
+      - name: Display Results
+        run: |
+          echo "Health Score: ${{ steps.docs-check.outputs.health-score }}"
+          echo "Total Documents: ${{ steps.docs-check.outputs.total-documents }}"
+          echo "Issues Found: ${{ steps.docs-check.outputs.issues-found }}"
+          echo "Broken Links: ${{ steps.docs-check.outputs.broken-links }}"

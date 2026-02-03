@@ -1,0 +1,56 @@
+name: 'Hit Em With The Docs'
+description: 'Self-managing documentation system with hierarchical structure, intelligent automation, and pattern discovery'
+author: 'hit-em-with-the-docs'
+
+branding:
+  icon: 'book-open'
+  color: 'blue'
+
+inputs:
+  command:
+    description: 'Command to run: init, maintain, audit, link-check, metadata-sync, integrate, discover'
+    required: true
+    default: 'maintain'
+  mode:
+    description: 'Execution mode: quick (skip link check), full (all checks), fix (auto-fix issues)'
+    required: false
+    default: 'quick'
+  docs-path:
+    description: 'Path to documentation directory'
+    required: false
+    default: '.documentation'
+  domain:
+    description: 'Specific domain to operate on (optional, applies to audit, link-check)'
+    required: false
+  discover-type:
+    description: 'Discovery type: patterns, anti-patterns, standards, dependencies'
+    required: false
+    default: 'patterns'
+  fail-on-error:
+    description: 'Fail the workflow if critical errors are found'
+    required: false
+    default: 'false'
+  fail-threshold:
+    description: 'Health score threshold below which to fail (0-100)'
+    required: false
+    default: '50'
+
+outputs:
+  health-score:
+    description: 'Documentation health score (0-100)'
+  total-documents:
+    description: 'Total number of documentation files'
+  issues-found:
+    description: 'Number of issues found'
+  issues-fixed:
+    description: 'Number of issues auto-fixed (when mode=fix)'
+  broken-links:
+    description: 'Number of broken links detected'
+  metadata-compliance:
+    description: 'Percentage of documents with complete metadata'
+  report-path:
+    description: 'Path to the generated report file'
+
+runs:
+  using: 'node20'
+  main: 'dist/action/index.js'

@@ -1,0 +1,64 @@
+# Pattern discovery workflow
+# Discovers coding patterns and anti-patterns in your codebase
+# Useful for maintaining code quality documentation
+
+name: Pattern Discovery
+
+on:
+  schedule:
+    # Run weekly on Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      discover_type:
+        description: 'What to discover'
+        required: true
+        default: 'patterns'
+        type: choice
+        options:
+          - patterns
+          - anti-patterns
+          - standards
+          - dependencies
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Discover Patterns
+        id: patterns
+        uses: your-username/hit-em-with-the-docs@v1
+        with:
+          command: discover
+          discover-type: patterns
+
+      - name: Discover Anti-Patterns
+        id: antipatterns
+        uses: your-username/hit-em-with-the-docs@v1
+        with:
+          command: discover
+          discover-type: anti-patterns
+
+      - name: Discover Standards
+        id: standards
+        uses: your-username/hit-em-with-the-docs@v1
+        with:
+          command: discover
+          discover-type: standards
+
+      - name: Analyze Dependencies
+        id: dependencies
+        uses: your-username/hit-em-with-the-docs@v1
+        with:
+          command: discover
+          discover-type: dependencies
+
+      - name: Summary
+        run: |
+          echo "## Pattern Discovery Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Pattern discovery has been completed. Review the logs for details." >> $GITHUB_STEP_SUMMARY

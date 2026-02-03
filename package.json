@@ -1,0 +1,95 @@
+{
+  "name": "hit-em-with-the-docs",
+  "version": "1.0.0",
+  "description": "Self-managing documentation system with hierarchical structure, intelligent automation, pattern discovery, and agent orchestration",
+  "type": "module",
+  "main": "dist/cli/index.js",
+  "bin": {
+    "hit-em-with-the-docs": "dist/cli/index.js",
+    "hewtd": "dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./cli": {
+      "import": "./dist/cli/index.js"
+    },
+    "./action": {
+      "import": "./dist/action/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "templates",
+    "action.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:action": "ncc build src/action/index.ts -o dist/action --minify",
+    "build:all": "npm run build && npm run build:action",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build:all && npm run test",
+    "cli": "node dist/cli/index.js"
+  },
+  "keywords": [
+    "documentation",
+    "github-action",
+    "docs",
+    "markdown",
+    "automation",
+    "cli",
+    "hierarchical",
+    "metadata",
+    "pattern-discovery",
+    "code-quality",
+    "self-managing",
+    "dsmp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/username/hit-em-with-the-docs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/username/hit-em-with-the-docs/issues"
+  },
+  "homepage": "https://github.com/username/hit-em-with-the-docs#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "fast-levenshtein": "^3.0.0",
+    "glob": "^10.4.5",
+    "gray-matter": "^4.0.3",
+    "yaml": "^2.6.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/github": "^6.0.0",
+    "@types/fast-levenshtein": "^0.0.4",
+    "@types/node": "^20.17.12",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vercel/ncc": "^0.38.3",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^8.57.1",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

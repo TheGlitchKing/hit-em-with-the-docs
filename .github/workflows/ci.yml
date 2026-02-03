@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test:coverage
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: matrix.node-version == '20.x'
+        with:
+          files: ./coverage/coverage-final.json
+          fail_ci_if_error: false
+
+  action-build:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build action
+        run: npm run build:action
+
+      - name: Verify action dist
+        run: |
+          if [ ! -f dist/action/index.js ]; then
+            echo "Action build failed - dist/action/index.js not found"
+            exit 1
+          fi
+          echo "Action build successful"
+
+  test-action:
+    runs-on: ubuntu-latest
+    needs: action-build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build:all
+
+      - name: Create test documentation
+        run: |
+          mkdir -p .documentation/security
+          echo "---
+          title: Test Document
+          tier: guide
+          domains: [security]
+          status: active
+          ---
+          # Test Document
+          This is a test." > .documentation/security/test-doc.md
+
+      - name: Test action (init)
+        uses: ./
+        with:
+          command: init
+          docs-path: .documentation
+
+      - name: Test action (maintain)
+        uses: ./
+        with:
+          command: maintain
+          mode: quick
+          docs-path: .documentation
