@@ -83,105 +83,492 @@ This creates:
 └── ... (15 domains total)
 ```
 
-## Commands
+## CLI Commands Reference
 
-### Maintenance
+### `init` - Initialize Documentation Structure
+
+**When to use**: First-time setup when starting documentation in a new project.
+
+**What it does**: Creates the complete 15-domain hierarchical structure with INDEX/REGISTRY files.
 
 ```bash
-# Run full maintenance (metadata sync + link check + audit)
-npx hit-em-with-the-docs maintain
+# Initialize in current directory
+hewtd init
 
-# Quick mode (skip link checking)
-npx hit-em-with-the-docs maintain --quick
+# Initialize in specific path
+hewtd init --path ./my-docs
 
-# Auto-fix mode
-npx hit-em-with-the-docs maintain --fix
+# Choose template
+hewtd init --template minimal
 ```
 
-### Metadata
+**Output**: Creates 53 files/directories including:
+- Root INDEX.md, REGISTRY.md, README.md
+- 15 domain folders (security, api, devops, etc.)
+- Each domain gets INDEX.md + REGISTRY.md
+- Empty reports/ and drafts/ folders
+
+**Use cases**:
+- Starting documentation from scratch
+- Migrating from flat documentation structure
+- Setting up new projects with best practices
+
+---
+
+### `maintain` - Full Documentation Maintenance
+
+**When to use**: Weekly/monthly maintenance, pre-release checks, or after major documentation updates.
+
+**What it does**: Runs complete maintenance workflow (metadata sync + link check + audit) and generates health report.
 
 ```bash
-# Sync metadata across all documents
-npx hit-em-with-the-docs metadata-sync
+# Full maintenance (recommended weekly)
+hewtd maintain
 
-# Dry-run (preview changes)
-npx hit-em-with-the-docs metadata-sync --dry-run
+# Quick mode - skip link checking (faster for daily checks)
+hewtd maintain --quick
+
+# Auto-fix issues automatically
+hewtd maintain --quick --fix
+
+# Specific path
+hewtd maintain --path ./docs
+```
+
+**Output**:
+- Health score (0-100)
+- Fixed metadata issues
+- Broken link detection
+- Audit compliance report
+- Saved to `.documentation/reports/`
+
+**Use cases**:
+- Weekly documentation health checks
+- Pre-release validation
+- After adding multiple new documents
+- CI/CD pipeline integration
+- Preparing for documentation review
+
+**Recommended schedule**:
+- Daily: `hewtd maintain --quick` (fast check)
+- Weekly: `hewtd maintain --quick --fix` (auto-fix issues)
+- Monthly: `hewtd maintain --fix` (full with link checking)
+
+---
+
+### `integrate` - Auto-Classify and Place Documents
+
+**When to use**: Adding existing documents to the hierarchical structure.
+
+**What it does**: Analyzes content, detects appropriate domain, generates metadata, adds frontmatter, and moves file.
+
+```bash
+# Integrate a single document
+hewtd integrate ./docs/my-guide.md
+
+# Preview without changes
+hewtd integrate ./docs/my-guide.md --dry-run
+
+# Auto mode (no prompts)
+hewtd integrate ./docs/my-guide.md --auto
+
+# Force integration even with duplicates
+hewtd integrate ./docs/my-guide.md --force
+```
+
+**What it analyzes**:
+- Content keywords (security, API, testing, etc.)
+- Document structure (guide, reference, example)
+- Audience level (developers, admin)
+- Automatically generates 22-field metadata
+
+**Output**:
+- Detected domain with confidence %
+- Generated metadata (title, tier, domains, status)
+- Target path in .documentation structure
+- File moved with frontmatter added
+
+**Use cases**:
+- Migrating existing documentation
+- Adding new guides without manual classification
+- Organizing scattered documentation files
+- Bulk import from legacy systems
+
+**Example workflow**:
+```bash
+# Preview where documents will go
+for file in docs/*.md; do
+  hewtd integrate "$file" --dry-run
+done
+
+# If happy with classification, integrate them
+for file in docs/*.md; do
+  hewtd integrate "$file" --auto
+done
+```
+
+---
+
+### `metadata-sync` - Sync Metadata Across Documents
+
+**When to use**: After manual edits, when metadata is missing, or for bulk metadata updates.
+
+**What it does**: Validates, generates missing fields, calculates read times, and ensures consistency.
+
+```bash
+# Sync all metadata (dry-run by default)
+hewtd metadata-sync
 
 # Auto-fix missing fields
-npx hit-em-with-the-docs metadata-sync --fix
+hewtd metadata-sync --fix
+
+# Specific domain only
+hewtd metadata-sync --domain security --fix
+
+# Specific path
+hewtd metadata-sync --path ./docs --fix
 ```
 
-### Link Checking
+**Auto-generates**:
+- `word_count` - Character analysis
+- `estimated_read_time` - Based on word count
+- `last_validated` - Current date
+- Missing required fields with sensible defaults
+
+**Validates**:
+- Required fields present (title, tier, domains, status)
+- Date formats (YYYY-MM-DD)
+- Domain names match available domains
+- Tier values (guide|standard|example|reference|admin)
+
+**Use cases**:
+- After bulk document edits
+- Standardizing metadata across team
+- Fixing validation errors
+- Preparing for audits
+
+---
+
+### `link-check` - Validate Internal Links
+
+**When to use**: Before releases, after restructuring, or monthly maintenance.
+
+**What it does**: Checks all internal markdown links, detects broken references, and generates topology report.
 
 ```bash
-# Check all internal links
-npx hit-em-with-the-docs link-check
+# Check all links
+hewtd link-check
 
-# Check specific domain
-npx hit-em-with-the-docs link-check --domain security
+# Specific domain
+hewtd link-check --domain api
 
-# Generate detailed report
-npx hit-em-with-the-docs link-check --report
+# Generate detailed link topology report
+hewtd link-check --report
+
+# Specific path
+hewtd link-check --path ./docs
 ```
 
-### Auditing
+**Detects**:
+- Broken internal links
+- Links to non-existent files
+- Case-sensitivity issues
+- Cross-domain link patterns
+
+**Output**:
+- Total links checked
+- Broken links with file locations
+- Link topology (cross-domain relationships)
+- Saved to `.documentation/reports/`
+
+**Use cases**:
+- Pre-release validation
+- After renaming/moving files
+- Monthly documentation health checks
+- Detecting orphaned documents
+
+---
+
+### `audit` - Documentation Compliance Audit
+
+**When to use**: Code reviews, quality gates, or establishing baselines.
+
+**What it does**: Audits against naming conventions, file placement, metadata completeness, and best practices.
 
 ```bash
 # Audit all documentation
-npx hit-em-with-the-docs audit
+hewtd audit
 
-# Audit specific domain
-npx hit-em-with-the-docs audit --domain standards
+# Specific domain
+hewtd audit --domain standards
 
-# Show only issues
-npx hit-em-with-the-docs audit --issues-only
+# Show only failures
+hewtd audit --issues-only
+
+# Generate detailed audit report
+hewtd audit --report
 ```
 
-### Integration
+**Checks**:
+- File naming conventions (kebab-case)
+- Correct domain placement
+- Metadata completeness (required fields)
+- Tier appropriateness
+- Frontmatter formatting
+
+**Scoring**:
+- Overall health score (0-100)
+- Per-domain compliance %
+- Metadata completeness %
+- Naming compliance %
+
+**Use cases**:
+- Establishing documentation quality baseline
+- Pre-merge validation in PRs
+- Quarterly documentation reviews
+- Compliance reporting
+
+---
+
+### `discover` - Pattern Discovery from Codebase
+
+**When to use**: Documenting existing patterns, creating style guides, or architectural documentation.
+
+**What it does**: Analyzes codebase to extract patterns, anti-patterns, standards, and dependencies.
 
 ```bash
-# Integrate a rogue document into the system
-npx hit-em-with-the-docs integrate ./docs/new-guide.md
-
-# Auto mode (no prompts)
-npx hit-em-with-the-docs integrate ./docs/new-guide.md --auto
-
-# Dry-run
-npx hit-em-with-the-docs integrate ./docs/new-guide.md --dry-run
-```
-
-### Pattern Discovery
-
-```bash
-# Discover coding patterns
-npx hit-em-with-the-docs discover patterns
+# Discover coding patterns (singleton, factory, repository, etc.)
+hewtd discover patterns
 
 # Filter by language
-npx hit-em-with-the-docs discover patterns --language typescript
+hewtd discover patterns --language typescript
 
-# Detect anti-patterns
-npx hit-em-with-the-docs discover anti-patterns
+# Find anti-patterns and code smells
+hewtd discover anti-patterns
 
-# Extract implicit standards
-npx hit-em-with-the-docs discover standards
+# Extract implicit coding standards
+hewtd discover standards
 
-# Analyze dependencies
-npx hit-em-with-the-docs discover dependencies
+# Analyze package dependencies
+hewtd discover dependencies
+
+# Save to specific domain
+hewtd discover patterns --output standards/
 ```
 
-### Other Commands
+**Pattern types detected**:
+- **Patterns**: Singleton, Factory, Repository, Service Layer, etc.
+- **Anti-patterns**: God objects, circular dependencies, etc.
+- **Standards**: Naming conventions, file organization, etc.
+- **Dependencies**: Package usage, version patterns, etc.
+
+**Output**: Markdown files with:
+- Pattern name and description
+- Code examples
+- Occurrence count
+- File locations
+- Recommendations
+
+**Use cases**:
+- Creating architecture documentation from code
+- Generating style guides automatically
+- Onboarding documentation
+- Technical debt identification
+- Code review guidelines
+
+---
+
+### `list` - List All Domains
+
+**When to use**: Quick reference, exploring structure, or scripting.
+
+**What it does**: Displays all 15 domains with descriptions, categories, and priorities.
 
 ```bash
 # List all domains
-npx hit-em-with-the-docs list
+hewtd list
 
-# Search documentation
-npx hit-em-with-the-docs search "authentication"
+# JSON output for scripting
+hewtd list --format json
+```
 
-# Generate reports
-npx hit-em-with-the-docs report health
-npx hit-em-with-the-docs report audit
-npx hit-em-with-the-docs report links
+**Output**: Table with:
+- Domain name
+- Category (core, features, development, advanced)
+- Load priority (1-10, higher = more important)
+- Description
+
+**Use cases**:
+- Learning the domain structure
+- Deciding where to place new documentation
+- Quick reference during writing
+- Scripting and automation
+
+---
+
+### `search` - Search Documentation
+
+**When to use**: Finding specific information, cross-referencing, or validating coverage.
+
+**What it does**: Full-text search across all documentation with relevance ranking.
+
+```bash
+# Search all documentation
+hewtd search "authentication"
+
+# Search in specific domain
+hewtd search "authentication" --domain security
+
+# Case-sensitive search
+hewtd search "Authentication" --case-sensitive
+
+# Search in titles only
+hewtd search "API" --titles-only
+```
+
+**Output**:
+- Matching documents with relevance score
+- Context snippets
+- File paths
+- Domain classification
+
+**Use cases**:
+- Finding existing documentation on a topic
+- Checking for duplicate content
+- Researching before writing new docs
+- Validating documentation coverage
+
+---
+
+### `report` - Generate Reports
+
+**When to use**: Dashboards, metrics, or stakeholder updates.
+
+**What it does**: Generates comprehensive reports in markdown or JSON format.
+
+```bash
+# Health report (overall documentation health)
+hewtd report health
+
+# Audit report (compliance and issues)
+hewtd report audit
+
+# Link topology report
+hewtd report links
+
+# Export as JSON for dashboards
+hewtd report health --format json
+```
+
+**Report types**:
+
+**Health Report**:
+- Overall health score
+- Domain statistics
+- Document counts per tier
+- Metadata completeness
+- Recent changes
+
+**Audit Report**:
+- Compliance by domain
+- Critical issues
+- Warnings
+- Recommendations
+- Historical trends
+
+**Link Report**:
+- Total links analyzed
+- Broken links by file
+- Cross-domain link patterns
+- Link topology visualization
+- Orphaned documents
+
+**Use cases**:
+- Weekly documentation metrics
+- Stakeholder reporting
+- Trend analysis
+- Quality dashboards
+- CI/CD reporting
+
+---
+
+## Common Workflows
+
+### Daily Development
+```bash
+# Quick health check before committing
+hewtd maintain --quick
+```
+
+### Adding New Documentation
+```bash
+# 1. Write your document
+vim my-new-guide.md
+
+# 2. Integrate it (auto-classifies and places)
+hewtd integrate my-new-guide.md
+
+# 3. Run quick check
+hewtd maintain --quick --fix
+```
+
+### Weekly Maintenance
+```bash
+# Auto-fix all issues
+hewtd maintain --quick --fix
+
+# Review the report
+cat .documentation/reports/maintenance-*.md
+```
+
+### Pre-Release Checklist
+```bash
+# 1. Full maintenance with link checking
+hewtd maintain --fix
+
+# 2. Generate health report
+hewtd report health
+
+# 3. Ensure health score > 80%
+# 4. Review and commit
+```
+
+### Migrating Existing Docs
+```bash
+# 1. Initialize structure
+hewtd init
+
+# 2. Preview integration (dry-run)
+for file in old-docs/*.md; do
+  hewtd integrate "$file" --dry-run
+done
+
+# 3. Integrate all documents
+for file in old-docs/*.md; do
+  hewtd integrate "$file" --auto
+done
+
+# 4. Run full maintenance
+hewtd maintain --fix
+
+# 5. Review health score
+hewtd report health
+```
+
+### Creating Architecture Docs from Code
+```bash
+# 1. Discover patterns
+hewtd discover patterns
+
+# 2. Extract standards
+hewtd discover standards
+
+# 3. Analyze dependencies
+hewtd discover dependencies
+
+# 4. Review generated docs in appropriate domains
+cat .documentation/standards/*.md
+cat .documentation/architecture/*.md
 ```
 
 ## Domain Structure
