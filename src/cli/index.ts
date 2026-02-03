@@ -23,7 +23,7 @@ const program = new Command();
 program
   .name('hit-em-with-the-docs')
   .description('Self-managing documentation system with hierarchical structure and intelligent automation')
-  .version('1.0.0');
+  .version('2.0.0');
 
 // Init command
 program

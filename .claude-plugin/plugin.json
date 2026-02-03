@@ -1,0 +1,114 @@
+{
+  "name": "hit-em-with-the-docs",
+  "displayName": "Hit 'Em With The Docs",
+  "version": "2.0.0",
+  "description": "Self-managing documentation system with hierarchical structure, intelligent automation, pattern discovery, and agent orchestration",
+  "author": "TheGlitchKing",
+  "license": "MIT",
+  "repository": "https://github.com/TheGlitchKing/hit-em-with-the-docs",
+  "homepage": "https://github.com/TheGlitchKing/hit-em-with-the-docs#readme",
+  "bugs": "https://github.com/TheGlitchKing/hit-em-with-the-docs/issues",
+  "keywords": [
+    "documentation",
+    "automation",
+    "hierarchical",
+    "pattern-discovery",
+    "metadata",
+    "link-checking",
+    "self-managing"
+  ],
+  "claudePlugin": {
+    "templatePath": "templates/claude/CLAUDE.md",
+    "commands": [
+      {
+        "name": "/docs",
+        "description": "Documentation management commands for the hierarchical documentation system",
+        "subcommands": [
+          {
+            "name": "load",
+            "description": "Load documentation for a specific domain",
+            "usage": "/docs load <domain>"
+          },
+          {
+            "name": "list",
+            "description": "List all 15 documentation domains with descriptions",
+            "usage": "/docs list"
+          },
+          {
+            "name": "search",
+            "description": "Search across all documentation for a query term",
+            "usage": "/docs search <query>"
+          },
+          {
+            "name": "stats",
+            "description": "Show documentation health statistics",
+            "usage": "/docs stats"
+          },
+          {
+            "name": "maintain",
+            "description": "Run documentation maintenance",
+            "usage": "/docs maintain"
+          },
+          {
+            "name": "integrate",
+            "description": "Integrate a document into the system",
+            "usage": "/docs integrate <file>"
+          }
+        ]
+      },
+      {
+        "name": "/discover",
+        "description": "Pattern discovery commands for extracting patterns from the codebase",
+        "subcommands": [
+          {
+            "name": "patterns",
+            "description": "Discover coding patterns in the codebase",
+            "usage": "/discover patterns"
+          },
+          {
+            "name": "anti-patterns",
+            "description": "Detect anti-patterns and code smells",
+            "usage": "/discover anti-patterns"
+          },
+          {
+            "name": "standards",
+            "description": "Extract implicit coding standards",
+            "usage": "/discover standards"
+          },
+          {
+            "name": "dependencies",
+            "description": "Analyze project dependencies",
+            "usage": "/discover dependencies"
+          }
+        ]
+      }
+    ]
+  },
+  "installation": {
+    "methods": [
+      {
+        "type": "npm-global",
+        "command": "npm install -g @theglitchking/hit-em-with-the-docs",
+        "description": "Install globally via NPM"
+      },
+      {
+        "type": "npm-local",
+        "command": "npm install --save-dev @theglitchking/hit-em-with-the-docs",
+        "description": "Install as dev dependency"
+      },
+      {
+        "type": "npx",
+        "command": "npx @theglitchking/hit-em-with-the-docs",
+        "description": "Run without installing"
+      },
+      {
+        "type": "github-action",
+        "command": "uses: TheGlitchKing/hit-em-with-the-docs@v2",
+        "description": "Use as GitHub Action"
+      }
+    ],
+    "requirements": {
+      "node": ">=20.0.0"
+    }
+  }
+}

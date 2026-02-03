@@ -1,0 +1,46 @@
+{
+  "name": "hit-em-with-the-docs-marketplace",
+  "owner": {
+    "name": "TheGlitchKing",
+    "email": "contact@theglitchking.dev"
+  },
+  "metadata": {
+    "description": "Official marketplace for hit-em-with-the-docs - Self-managing documentation system",
+    "version": "2.0.0"
+  },
+  "plugins": [
+    {
+      "name": "hit-em-with-the-docs",
+      "description": "Self-managing documentation system with hierarchical structure, intelligent automation, pattern discovery, and agent orchestration",
+      "version": "2.0.0",
+      "author": {
+        "name": "TheGlitchKing"
+      },
+      "homepage": "https://github.com/TheGlitchKing/hit-em-with-the-docs",
+      "repository": "https://github.com/TheGlitchKing/hit-em-with-the-docs.git",
+      "license": "MIT",
+      "keywords": [
+        "documentation",
+        "automation",
+        "hierarchical",
+        "pattern-discovery",
+        "metadata",
+        "link-checking",
+        "self-managing",
+        "claude-code"
+      ],
+      "category": "productivity",
+      "tags": [
+        "documentation",
+        "automation",
+        "maintenance",
+        "discovery"
+      ],
+      "source": {
+        "source": "npm",
+        "package": "@theglitchking/hit-em-with-the-docs"
+      },
+      "strict": true
+    }
+  ]
+}

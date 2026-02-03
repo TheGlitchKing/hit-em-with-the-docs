@@ -1,6 +1,6 @@
 {
-  "name": "hit-em-with-the-docs",
-  "version": "1.0.0",
+  "name": "@theglitchking/hit-em-with-the-docs",
+  "version": "2.0.0",
   "description": "Self-managing documentation system with hierarchical structure, intelligent automation, pattern discovery, and agent orchestration",
   "type": "module",
   "main": "dist/cli/index.js",
@@ -23,9 +23,11 @@
   "files": [
     "dist",
     "templates",
+    ".claude-plugin",
     "action.yml",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "MIGRATION.md"
   ],
   "scripts": {
     "build": "tsc",
@@ -39,8 +41,11 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build:all && npm run test",
+    "prepublishOnly": "npm run build:all && npm run test && bash scripts/validate-version.sh",
     "cli": "node dist/cli/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "documentation",
