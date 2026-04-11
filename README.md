@@ -38,6 +38,47 @@ The system includes automated tools that check your documentation for problems. 
 - **CLI Tool**: Full command-line interface for all operations
 - **Search Functionality**: Quick search across all documentation
 - **Claude Code Plugin**: Integrates with Claude Code so AI can read and help maintain your docs
+- **Sister Plugin Companion**: When [`semantic-pages`](https://github.com/TheGlitchKing/semantic-pages) is also installed, a **read-only** MCP server is auto-wired over `./.documentation/` so Claude can semantically search your docs without risking accidental writes (hewtd stays the sole writer of the tree)
+
+---
+
+## Sister Plugin: semantic-pages
+
+`hit-em-with-the-docs` is the canonical **writer** of `./.documentation/` — it scaffolds the 15-domain structure, classifies incoming docs, maintains the 22-field metadata schema, checks links, and produces health reports. By design, it treats `./.documentation/` as a tree it owns.
+
+[`semantic-pages`](https://github.com/TheGlitchKing/semantic-pages) is the canonical **reader**. It's a local MCP server that indexes any folder of markdown into a vector database + knowledge graph, exposing semantic search, wikilink traversal, and CRUD tools to Claude Code.
+
+When both plugins are installed together, `semantic-pages` auto-detects hewtd via Claude Code's plugin registry and stands up a **second, read-only** MCP instance pointed at `./.documentation/`. The read-only mode suppresses all 7 write tools (`create_note`, `update_note`, `delete_note`, `move_note`, `update_frontmatter`, `manage_tags`, `rename_tag`) so Claude can search and read the docs tree but can't race hewtd over writes. Your personal scratch vault at `./.claude/.vault/` stays fully read/write.
+
+### Behavior matrix
+
+| `hit-em-with-the-docs` | `semantic-pages` | Result |
+|---|---|---|
+| ✗ | ✗ | nothing |
+| ✓ | ✗ | hewtd CLI only; `.documentation/` managed but not indexed |
+| ✗ | ✓ | single MCP at `./.claude/.vault` (read/write) |
+| ✓ | ✓ | `./.claude/.vault` (r/w) **+** `./.documentation` (read-only) |
+
+### How it's wired
+
+`semantic-pages` ships a `SessionStart` hook that runs at the start of every Claude Code session and reconciles the project's `.mcp.json`. If hewtd is enabled in `~/.claude/settings.json` **and** `./.documentation/` exists in the current project, it adds a `semantic-pages` MCP entry pointed at `./.documentation` with `--read-only`. If either condition stops being true, it idempotently cleans up. See the [semantic-pages Sister Plugin docs](https://github.com/TheGlitchKing/semantic-pages#sister-plugin-hit-em-with-the-docs) for the full auto-wiring behavior.
+
+### Why we don't do it from hewtd's side
+
+hewtd does **not** ship any MCP configuration, declare semantic-pages as a dependency, or write to `.mcp.json`. Installing hewtd alone gives you a CLI-only tool with no MCP server — your project stays clean. The auto-wire only kicks in when a user has explicitly installed both plugins, signaling they want Claude to semantically index the hewtd-managed tree. The wiring logic lives entirely on the semantic-pages side.
+
+### Install both
+
+```bash
+# Inside a Claude Code session
+/plugin marketplace add TheGlitchKing/hit-em-with-the-docs
+/plugin install hit-em-with-the-docs@hit-em-with-the-docs-marketplace
+
+/plugin marketplace add TheGlitchKing/semantic-pages
+/plugin install semantic-pages@semantic-pages-marketplace
+```
+
+Next session start, `./.claude/.vault/` is created, `.mcp.json` is wired, and Claude has 14 read tools on `./.documentation/` plus 21 full tools on `./.claude/.vault/`.
 
 ---
 
