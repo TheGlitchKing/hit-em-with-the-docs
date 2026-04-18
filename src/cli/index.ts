@@ -2,7 +2,12 @@
 
 import { Command } from 'commander';
 import { resolve } from 'path';
+import { createRequire } from 'node:module';
+import { registerUpdateCommands } from '@theglitchking/claude-plugin-runtime';
 import { logger } from '../utils/logger.js';
+
+const require_ = createRequire(import.meta.url);
+const pkg = require_('../../package.json') as { version: string };
 import { createScaffold, scaffoldExists } from '../generators/scaffold.js';
 import { syncMetadata } from '../core/metadata/sync.js';
 import { checkLinks } from '../core/links/checker.js';
@@ -23,7 +28,13 @@ const program = new Command();
 program
   .name('hit-em-with-the-docs')
   .description('Self-managing documentation system with hierarchical structure and intelligent automation')
-  .version('2.0.0');
+  .version(pkg.version);
+
+registerUpdateCommands(program, {
+  packageName: '@theglitchking/hit-em-with-the-docs',
+  pluginName: 'hit-em-with-the-docs',
+  configFile: 'hit-em-with-the-docs.json',
+});
 
 // Init command
 program

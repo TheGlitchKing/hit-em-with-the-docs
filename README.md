@@ -119,6 +119,33 @@ hewtd init
 # You should see a new .documentation folder with 15 categories inside
 ```
 
+##### Update management *(2.1.0+)*
+
+Every install ships with an update policy that controls what happens at the start of each Claude Code session when a newer version is available on npm. The default is conservative — a one-liner nudge, no automatic changes.
+
+```bash
+# Show installed / latest / policy / hook state
+hewtd status
+
+# Opt into automatic updates on session start
+hewtd policy auto
+
+# One-liner notification only (default)
+hewtd policy nudge
+
+# Silence the update check entirely
+hewtd policy off
+
+# Force an update right now
+hewtd update
+```
+
+Slash-command parity: `/hit-em-with-the-docs:status`, `/hit-em-with-the-docs:policy <mode>`, `/hit-em-with-the-docs:update`.
+
+Policy resolution order: `HIT_EM_WITH_THE_DOCS_UPDATE_POLICY` env var → `<project>/.claude/hit-em-with-the-docs.json` → default `nudge`.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full 2.1.0 release notes and env-var opt-outs.
+
 ##### NPX Method (No installation needed)
 
 This lets you use the tool without installing it permanently.
