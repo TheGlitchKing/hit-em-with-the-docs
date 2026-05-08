@@ -344,5 +344,89 @@ describe('Metadata Schema', () => {
         expect(result.valid).toBe(true);
       });
     });
+
+    // The status field is conditionally restricted:
+    //   - tier === 'plan': any non-empty string accepted (plans use their own
+    //     lifecycle enums: phase/task = draft|active|paused|done|archived,
+    //     atom = ready|in_progress|done|blocked)
+    //   - tier !== 'plan': must be one of draft|active|deprecated|archived
+    //     (the historical doc-tier enum, regression-preserving)
+    describe('status field — conditional enum (added in 2.2.0 alongside plan tier)', () => {
+      it('accepts plan-specific status values for plan tier (e.g. "paused", "done")', () => {
+        for (const status of ['draft', 'active', 'paused', 'done', 'archived']) {
+          const result = validateMetadata({
+            title: 'My Phase',
+            tier: 'plan',
+            domains: ['planning'],
+            status,
+            last_updated: '2026-05-07',
+          });
+          expect(result.valid, `phase status "${status}" should be valid`).toBe(true);
+        }
+      });
+
+      it('accepts atom-specific status values for plan tier (e.g. "ready", "in_progress", "blocked")', () => {
+        for (const status of ['ready', 'in_progress', 'done', 'blocked']) {
+          const result = validateMetadata({
+            title: 'My Atom',
+            tier: 'plan',
+            domains: ['planning'],
+            status,
+            last_updated: '2026-05-07',
+          });
+          expect(result.valid, `atom status "${status}" should be valid`).toBe(true);
+        }
+      });
+
+      it('rejects "ready" status for non-plan tiers (regression preservation)', () => {
+        const result = validateMetadata({
+          title: 'Guide',
+          tier: 'guide',
+          domains: ['security'],
+          status: 'ready', // not in doc-tier enum
+          last_updated: '2026-05-07',
+          version: '1.0.0',
+        });
+        expect(result.valid).toBe(false);
+        expect(result.errors.some((e) => e.includes('status'))).toBe(true);
+      });
+
+      it('rejects "paused" status for non-plan tiers (regression preservation)', () => {
+        const result = validateMetadata({
+          title: 'Guide',
+          tier: 'guide',
+          domains: ['security'],
+          status: 'paused',
+          last_updated: '2026-05-07',
+          version: '1.0.0',
+        });
+        expect(result.valid).toBe(false);
+      });
+
+      it('still accepts the historical doc-tier enum values for non-plan tiers', () => {
+        for (const status of ['draft', 'active', 'deprecated', 'archived']) {
+          const result = validateMetadata({
+            title: 'Guide',
+            tier: 'guide',
+            domains: ['security'],
+            status,
+            last_updated: '2026-05-07',
+            version: '1.0.0',
+          });
+          expect(result.valid, `doc status "${status}" should be valid`).toBe(true);
+        }
+      });
+
+      it('rejects empty status string for plan tier (status is still required, just not enum-restricted)', () => {
+        const result = validateMetadata({
+          title: 'My Plan',
+          tier: 'plan',
+          domains: ['planning'],
+          status: '',
+          last_updated: '2026-05-07',
+        });
+        expect(result.valid).toBe(false);
+      });
+    });
   });
 });

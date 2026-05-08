@@ -17,12 +17,21 @@ const coreIdentitySchema = z.object({
 
 // Status & Lifecycle Fields
 //
-// `version` is optional in the base schema and conditionally required by the
-// final MetadataSchema's .refine() — required when tier !== 'plan', not
-// required when tier === 'plan' (plans have lifecycle status but versioning
-// doesn't apply). See ADR notes in persistent-planning's task plan.
+// Two conditional rules apply for plan-tier docs (introduced in 2.2.0):
+//
+//   1. `version` is optional in the base schema; conditionally required for
+//      tier !== 'plan' (plans use lifecycle status, not semver).
+//   2. `status` accepts any string in the base schema; conditionally
+//      restricted to the doc-tier enum for tier !== 'plan'. Plans use
+//      their own lifecycle enums (e.g. atom: ready|in_progress|done|blocked,
+//      phase/task: draft|active|paused|done|archived) which would conflict
+//      with the doc-tier enum.
+//
+// Both rules are enforced by .refine() on the merged MetadataSchema below.
+const DOC_STATUS_VALUES = ['draft', 'active', 'deprecated', 'archived'] as const;
+
 const statusSchema = z.object({
-  status: z.enum(['draft', 'active', 'deprecated', 'archived']),
+  status: z.string().min(1, 'status is required'),
   last_updated: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format'),
   version: z.string().regex(/^\d+\.\d+\.\d+$/, 'Must be semver format (X.Y.Z)').optional(),
 });
@@ -80,13 +89,23 @@ const _baseMergedSchema = coreIdentitySchema
  *   - tier !== 'plan' → version is required
  *   - tier === 'plan' → version is optional (may be absent or supplied)
  */
-export const MetadataSchema = _baseMergedSchema.refine(
-  (data) => data.tier === 'plan' || data.version !== undefined,
-  {
-    message: 'version is required when tier is not "plan"',
-    path: ['version'],
-  }
-);
+export const MetadataSchema = _baseMergedSchema
+  .refine(
+    (data) => data.tier === 'plan' || data.version !== undefined,
+    {
+      message: 'version is required when tier is not "plan"',
+      path: ['version'],
+    }
+  )
+  .refine(
+    (data) =>
+      data.tier === 'plan' ||
+      (DOC_STATUS_VALUES as readonly string[]).includes(data.status),
+    {
+      message: `status must be one of ${DOC_STATUS_VALUES.join('|')} when tier is not "plan"`,
+      path: ['status'],
+    }
+  );
 
 export type DocumentMetadata = z.infer<typeof MetadataSchema>;
 
