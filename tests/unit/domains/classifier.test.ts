@@ -10,8 +10,8 @@ import {
 
 describe('Tier Classifier', () => {
   describe('TIERS', () => {
-    it('should have 5 tiers', () => {
-      expect(TIERS).toHaveLength(5);
+    it('should have 6 tiers (added "plan" in 2.2.0)', () => {
+      expect(TIERS).toHaveLength(6);
     });
 
     it('should include all expected tiers', () => {
@@ -20,6 +20,7 @@ describe('Tier Classifier', () => {
       expect(TIERS).toContain('example');
       expect(TIERS).toContain('reference');
       expect(TIERS).toContain('admin');
+      expect(TIERS).toContain('plan');
     });
   });
 
@@ -178,6 +179,7 @@ Returns a user by ID.
       expect(result.scores).toHaveProperty('example');
       expect(result.scores).toHaveProperty('reference');
       expect(result.scores).toHaveProperty('admin');
+      expect(result.scores).toHaveProperty('plan');
     });
   });
 
@@ -194,6 +196,7 @@ Returns a user by ID.
       expect(isValidTier('guide')).toBe(true);
       expect(isValidTier('standard')).toBe(true);
       expect(isValidTier('admin')).toBe(true);
+      expect(isValidTier('plan')).toBe(true);
     });
 
     it('should return false for invalid tiers', () => {
@@ -208,6 +211,48 @@ Returns a user by ID.
       expect(getTierDisplayName('guide')).toBe('Guide');
       expect(getTierDisplayName('standard')).toBe('Standard');
       expect(getTierDisplayName('admin')).toBe('Admin');
+      expect(getTierDisplayName('plan')).toBe('Plan');
+    });
+  });
+
+  // --- 2.2.0: plan tier ---
+  describe('plan tier (2.2.0)', () => {
+    it('TIER_DEFINITIONS.plan has the right shape', () => {
+      const def = TIER_DEFINITIONS.plan;
+      expect(def).toBeDefined();
+      expect(def.id).toBe('plan');
+      expect(def.name).toBe('Plan');
+      expect(def.indicators).toContain('phase');
+      expect(def.indicators).toContain('task');
+      expect(def.indicators).toContain('atom');
+    });
+
+    it('classifyTier scores plan-shaped content into the plan tier', () => {
+      const planContent = `
+# Task Plan: Migrate to Postgres
+
+## Goal
+Migrate from MySQL to Postgres without downtime.
+
+## Scope at a glance
+Three phases.
+
+## Phases
+
+### Phase 1: Schema port
+- [ ] Atom: dump schema
+- [ ] Atom: convert types
+- [ ] Atom: validate
+
+## Decisions Made
+- Use logical replication for the cutover
+
+## Status
+Phase 1 in progress
+`;
+      const result = classifyTier(planContent);
+      // Plan-shaped content should win the classification
+      expect(result.tier).toBe('plan');
     });
   });
 });

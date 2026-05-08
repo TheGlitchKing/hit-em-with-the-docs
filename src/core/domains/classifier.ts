@@ -3,7 +3,7 @@
  * Classifies documents into 5 tiers based on content structure.
  */
 
-export const TIERS = ['guide', 'standard', 'example', 'reference', 'admin'] as const;
+export const TIERS = ['guide', 'standard', 'example', 'reference', 'admin', 'plan'] as const;
 export type Tier = (typeof TIERS)[number];
 
 export interface TierDefinition {
@@ -95,6 +95,22 @@ export const TIER_DEFINITIONS: Record<Tier, TierDefinition> = {
       /^#+\s*(troubleshooting|debugging)/i,
     ],
   },
+  plan: {
+    id: 'plan',
+    name: 'Plan',
+    description: 'Phase/task/atom planning artifacts (added in 2.2.0 for persistent-planning lg-mode interop). Plans typically carry tier: plan in frontmatter; auto-classification is a fallback.',
+    sizeRange: { min: 1, max: 200 },
+    indicators: [
+      'phase', 'task', 'atom', 'milestone', 'deliverable',
+      'plan', 'roadmap', 'blocker', 'dependency', 'next concrete action',
+    ],
+    headingPatterns: [
+      /^#+\s*(goal|scope|status)/i,
+      /^#+\s*(phases?|tasks?|atoms?)/i,
+      /^#+\s*(decisions? made|errors? encountered)/i,
+      /^#+\s*(implementation notes|key questions)/i,
+    ],
+  },
 };
 
 export interface TierClassificationResult {
@@ -114,6 +130,7 @@ export function classifyTier(content: string): TierClassificationResult {
     example: 0,
     reference: 0,
     admin: 0,
+    plan: 0,
   };
 
   const reasoning: string[] = [];
