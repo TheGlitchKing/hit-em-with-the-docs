@@ -211,7 +211,7 @@ For brand-new plan-tier docs, use persistent-planning's lg-mode templates (`/sta
 
 ## See also
 
-- [`docs/tier-reference.md`](./tier-reference.md) — full tier enum reference (TBD — separate doc)
+- `docs/tier-reference.md` — full tier enum reference (TBD — separate doc, not yet written)
 - [persistent-planning lg-mode guide](https://github.com/TheGlitchKing/persistent-planning/blob/main/docs/lg-mode.md) — full layered model documentation
 - CHANGELOG entry for 2.2.0 — schema changes
 - `~/workspace/the-glitch-kingdom/persistent-planning/.planning/layered-planning-with-mcp-and-hewtd-frontmatter/task_plan.md` — meta-plan
