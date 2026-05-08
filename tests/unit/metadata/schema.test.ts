@@ -213,4 +213,220 @@ describe('Metadata Schema', () => {
       expect(getFieldCategory('backlinks')).toBe('auto');
     });
   });
+
+  // --- 2.2.0: tier: "plan" + conditional version requirement ---
+  describe('plan tier (2.2.0)', () => {
+    describe('validateMetadata', () => {
+      it('accepts plan tier without version', () => {
+        const planMetadata = {
+          title: 'My Phase Plan',
+          tier: 'plan',
+          domains: ['planning'],
+          status: 'active',
+          last_updated: '2026-05-07',
+          // version intentionally omitted
+        };
+
+        const result = validateMetadata(planMetadata);
+        expect(result.valid).toBe(true);
+        expect(result.errors).toHaveLength(0);
+      });
+
+      it('accepts plan tier WITH version (version is allowed, just not required)', () => {
+        const planMetadata = {
+          title: 'My Phase Plan',
+          tier: 'plan',
+          domains: ['planning'],
+          status: 'active',
+          last_updated: '2026-05-07',
+          version: '1.0.0',
+        };
+
+        const result = validateMetadata(planMetadata);
+        expect(result.valid).toBe(true);
+        expect(result.errors).toHaveLength(0);
+      });
+
+      it('still rejects plan tier with INVALID version format', () => {
+        const planMetadata = {
+          title: 'My Phase Plan',
+          tier: 'plan',
+          domains: ['planning'],
+          status: 'active',
+          last_updated: '2026-05-07',
+          version: 'not-semver',
+        };
+
+        const result = validateMetadata(planMetadata);
+        expect(result.valid).toBe(false);
+      });
+
+      it('still requires version for non-plan tiers (regression on existing behavior)', () => {
+        const guideWithoutVersion = {
+          title: 'Guide',
+          tier: 'guide',
+          domains: ['planning'],
+          status: 'active',
+          last_updated: '2026-05-07',
+          // version intentionally omitted — should fail
+        };
+
+        const result = validateMetadata(guideWithoutVersion);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some((e) => e.includes('version'))).toBe(true);
+      });
+
+      it('still rejects plan tier with bad date format', () => {
+        const planMetadata = {
+          title: 'My Plan',
+          tier: 'plan',
+          domains: ['planning'],
+          status: 'active',
+          last_updated: '05/07/2026', // wrong format
+        };
+
+        const result = validateMetadata(planMetadata);
+        expect(result.valid).toBe(false);
+      });
+    });
+
+    describe('getMissingRequiredFields', () => {
+      it('does NOT report version as missing when tier is plan', () => {
+        const data = {
+          title: 'My Plan',
+          tier: 'plan',
+          domains: ['planning'],
+          status: 'active',
+          last_updated: '2026-05-07',
+          // no version
+        };
+
+        const missing = getMissingRequiredFields(data);
+        expect(missing).not.toContain('version');
+        expect(missing).toHaveLength(0);
+      });
+
+      it('still reports version as missing for non-plan tiers', () => {
+        const data = {
+          title: 'Guide',
+          tier: 'guide',
+          domains: ['security'],
+          status: 'active',
+          last_updated: '2026-05-07',
+          // no version
+        };
+
+        const missing = getMissingRequiredFields(data);
+        expect(missing).toContain('version');
+        expect(missing).toHaveLength(1);
+      });
+
+      it('still reports OTHER missing fields for plan tier', () => {
+        const data = {
+          title: 'My Plan',
+          tier: 'plan',
+          // missing domains, status, last_updated
+        };
+
+        const missing = getMissingRequiredFields(data);
+        expect(missing).toContain('domains');
+        expect(missing).toContain('status');
+        expect(missing).toContain('last_updated');
+        expect(missing).not.toContain('version'); // exempt for plan
+        expect(missing).not.toContain('title');
+        expect(missing).not.toContain('tier');
+      });
+    });
+
+    describe('PartialMetadataSchema', () => {
+      it('still allows partial plan metadata (tier alone)', () => {
+        const result = validatePartialMetadata({ tier: 'plan' });
+        expect(result.valid).toBe(true);
+      });
+    });
+
+    // The status field is conditionally restricted:
+    //   - tier === 'plan': any non-empty string accepted (plans use their own
+    //     lifecycle enums: phase/task = draft|active|paused|done|archived,
+    //     atom = ready|in_progress|done|blocked)
+    //   - tier !== 'plan': must be one of draft|active|deprecated|archived
+    //     (the historical doc-tier enum, regression-preserving)
+    describe('status field — conditional enum (added in 2.2.0 alongside plan tier)', () => {
+      it('accepts plan-specific status values for plan tier (e.g. "paused", "done")', () => {
+        for (const status of ['draft', 'active', 'paused', 'done', 'archived']) {
+          const result = validateMetadata({
+            title: 'My Phase',
+            tier: 'plan',
+            domains: ['planning'],
+            status,
+            last_updated: '2026-05-07',
+          });
+          expect(result.valid, `phase status "${status}" should be valid`).toBe(true);
+        }
+      });
+
+      it('accepts atom-specific status values for plan tier (e.g. "ready", "in_progress", "blocked")', () => {
+        for (const status of ['ready', 'in_progress', 'done', 'blocked']) {
+          const result = validateMetadata({
+            title: 'My Atom',
+            tier: 'plan',
+            domains: ['planning'],
+            status,
+            last_updated: '2026-05-07',
+          });
+          expect(result.valid, `atom status "${status}" should be valid`).toBe(true);
+        }
+      });
+
+      it('rejects "ready" status for non-plan tiers (regression preservation)', () => {
+        const result = validateMetadata({
+          title: 'Guide',
+          tier: 'guide',
+          domains: ['security'],
+          status: 'ready', // not in doc-tier enum
+          last_updated: '2026-05-07',
+          version: '1.0.0',
+        });
+        expect(result.valid).toBe(false);
+        expect(result.errors.some((e) => e.includes('status'))).toBe(true);
+      });
+
+      it('rejects "paused" status for non-plan tiers (regression preservation)', () => {
+        const result = validateMetadata({
+          title: 'Guide',
+          tier: 'guide',
+          domains: ['security'],
+          status: 'paused',
+          last_updated: '2026-05-07',
+          version: '1.0.0',
+        });
+        expect(result.valid).toBe(false);
+      });
+
+      it('still accepts the historical doc-tier enum values for non-plan tiers', () => {
+        for (const status of ['draft', 'active', 'deprecated', 'archived']) {
+          const result = validateMetadata({
+            title: 'Guide',
+            tier: 'guide',
+            domains: ['security'],
+            status,
+            last_updated: '2026-05-07',
+            version: '1.0.0',
+          });
+          expect(result.valid, `doc status "${status}" should be valid`).toBe(true);
+        }
+      });
+
+      it('rejects empty status string for plan tier (status is still required, just not enum-restricted)', () => {
+        const result = validateMetadata({
+          title: 'My Plan',
+          tier: 'plan',
+          domains: ['planning'],
+          status: '',
+          last_updated: '2026-05-07',
+        });
+        expect(result.valid).toBe(false);
+      });
+    });
+  });
 });
