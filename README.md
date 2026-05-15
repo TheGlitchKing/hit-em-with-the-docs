@@ -10,6 +10,8 @@
 > You still need to remember to use this plugin when creating documentation! As projects grow, documentation needs to be created and maintained. You'll need to invoke this plugin or ask an LLM to create documentation for your features, workflows, or infrastructure. This plugin must be invoked to create, update, or maintain your docs.
 
 > [!NOTE]
+> **New in 2.3.0:** the knowledge-base primitives layer. Three new tiers (`fact`, `incident-narrative`, `incident-facts`) for citable atomic claims and immutable postmortems, plus an optional `symptoms:` frontmatter field on any-tier playbooks for symptom→playbook routing with `cites:` to facts. Three new deterministic indexes (`facts/INDEX.md`, `incidents/INDEX.md`, `symptoms/INDEX.md`) auto-generate on `hewtd maintain` when a vault root exists. Five new CLI commands: `find-citers`, `audit-facts [--run-verify]`, `extract-facts`, `cite`, `migrate-incident`. New `audit --strict` flag for CI gating. New `/hit-em-with-the-docs:help` slash command for LLM orientation. Four authoring templates at `templates/knowledge-base/`. Full reference: [`docs/knowledge-base-primitives.md`](./docs/knowledge-base-primitives.md). Agent guide: [`docs/LLM-GUIDE.md`](./docs/LLM-GUIDE.md).
+>
 > **New in 2.2.0:** the `tier` enum gains a `"plan"` value for [persistent-planning](https://github.com/TheGlitchKing/persistent-planning) lg-mode artifacts (phase / task / atom / notes documents), and the `version` and `status` fields are now conditionally relaxed for plan-tier docs (plans use lifecycle status, not semver). Existing tiers (guide / standard / example / reference / admin) are unchanged. See [`docs/plan-tier-frontmatter.md`](./docs/plan-tier-frontmatter.md) for the full reference.
 
 ---

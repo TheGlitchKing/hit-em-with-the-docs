@@ -3,8 +3,44 @@
  * Classifies documents into 5 tiers based on content structure.
  */
 
-export const TIERS = ['guide', 'standard', 'example', 'reference', 'admin', 'plan'] as const;
+export const TIERS = [
+  'guide',
+  'standard',
+  'example',
+  'reference',
+  'admin',
+  'plan',
+  'fact',
+  'incident-narrative',
+  'incident-facts',
+] as const;
 export type Tier = (typeof TIERS)[number];
+
+/**
+ * Tiers that use lifecycle status (status field) instead of semver versioning.
+ * These tiers have `version` relaxed to optional in the MetadataSchema and
+ * accept tier-specific status enums in addition to (or instead of) the
+ * doc-tier status enum.
+ *
+ * - plan: phase/task/atom planning artifacts (added in 2.2.0)
+ * - fact: atomic knowledge claims, tracked via `last_verified` + confidence
+ * - incident-narrative: postmortem story (date-stamped, immutable)
+ * - incident-facts: bridge doc linking incidents to facts they produced
+ */
+export const LIFECYCLE_TRACKED_TIERS = [
+  'plan',
+  'fact',
+  'incident-narrative',
+  'incident-facts',
+] as const satisfies readonly Tier[];
+export type LifecycleTrackedTier = (typeof LIFECYCLE_TRACKED_TIERS)[number];
+
+export function isLifecycleTrackedTier(tier: unknown): tier is LifecycleTrackedTier {
+  return (
+    typeof tier === 'string' &&
+    (LIFECYCLE_TRACKED_TIERS as readonly string[]).includes(tier)
+  );
+}
 
 export interface TierDefinition {
   id: Tier;
@@ -111,6 +147,54 @@ export const TIER_DEFINITIONS: Record<Tier, TierDefinition> = {
       /^#+\s*(implementation notes|key questions)/i,
     ],
   },
+  fact: {
+    id: 'fact',
+    name: 'Fact',
+    description: 'Atomic, single-claim, citable unit of knowledge (added in 2.3.0). Facts use last_verified + confidence instead of semver versioning. Facts typically carry tier: fact in frontmatter; auto-classification is a fallback.',
+    sizeRange: { min: 1, max: 5 },
+    indicators: [
+      'claim', 'confidence', 'verify', 'last verified', 'provenance',
+      'citation', 'fact', 'hypothesis', 'invalidated by', 'consequence',
+    ],
+    headingPatterns: [
+      /^#+\s*(claim|the claim)/i,
+      /^#+\s*(how to verify|verification)/i,
+      /^#+\s*(consequences?|implications?)/i,
+      /^#+\s*(cited by|provenance)/i,
+    ],
+  },
+  'incident-narrative': {
+    id: 'incident-narrative',
+    name: 'Incident narrative',
+    description: 'Immutable postmortem story (added in 2.3.0). Lives at <vault-root>/incidents/<date-slug>/narrative.md. Date-stamped; uses lifecycle status (open/partial/resolved/planned) not semver.',
+    sizeRange: { min: 2, max: 50 },
+    indicators: [
+      'postmortem', 'incident', 'outage', 'severity', 'resolution',
+      'timeline', 'root cause', 'remediation', 'symptoms', 'on-call',
+    ],
+    headingPatterns: [
+      /^#+\s*(timeline|sequence of events)/i,
+      /^#+\s*(root cause|cause)/i,
+      /^#+\s*(impact|severity)/i,
+      /^#+\s*(remediation|resolution|fix)/i,
+      /^#+\s*(lessons learned|action items|follow[-\s]ups?)/i,
+    ],
+  },
+  'incident-facts': {
+    id: 'incident-facts',
+    name: 'Incident facts bridge',
+    description: 'Bridge document linking an incident to the facts it produced, strengthened, or weakened (added in 2.3.0). Lives at <vault-root>/incidents/<date-slug>/facts.md.',
+    sizeRange: { min: 1, max: 10 },
+    indicators: [
+      'produced', 'strengthened', 'weakened', 'facts from',
+      'incident facts', 'bridges to', 'derived from',
+    ],
+    headingPatterns: [
+      /^#+\s*(produced|new facts)/i,
+      /^#+\s*(strengthened)/i,
+      /^#+\s*(weakened|invalidated)/i,
+    ],
+  },
 };
 
 export interface TierClassificationResult {
@@ -131,6 +215,9 @@ export function classifyTier(content: string): TierClassificationResult {
     reference: 0,
     admin: 0,
     plan: 0,
+    fact: 0,
+    'incident-narrative': 0,
+    'incident-facts': 0,
   };
 
   const reasoning: string[] = [];

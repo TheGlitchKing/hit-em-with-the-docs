@@ -6,12 +6,14 @@ import {
   getTierDefinition,
   isValidTier,
   getTierDisplayName,
+  LIFECYCLE_TRACKED_TIERS,
+  isLifecycleTrackedTier,
 } from '../../../src/core/domains/classifier.js';
 
 describe('Tier Classifier', () => {
   describe('TIERS', () => {
-    it('should have 6 tiers (added "plan" in 2.2.0)', () => {
-      expect(TIERS).toHaveLength(6);
+    it('should have 9 tiers (added "plan" in 2.2.0; "fact", "incident-narrative", "incident-facts" in 2.3.0)', () => {
+      expect(TIERS).toHaveLength(9);
     });
 
     it('should include all expected tiers', () => {
@@ -21,6 +23,9 @@ describe('Tier Classifier', () => {
       expect(TIERS).toContain('reference');
       expect(TIERS).toContain('admin');
       expect(TIERS).toContain('plan');
+      expect(TIERS).toContain('fact');
+      expect(TIERS).toContain('incident-narrative');
+      expect(TIERS).toContain('incident-facts');
     });
   });
 
@@ -174,12 +179,9 @@ Returns a user by ID.
       const content = 'Some content here';
       const result = classifyTier(content);
 
-      expect(result.scores).toHaveProperty('guide');
-      expect(result.scores).toHaveProperty('standard');
-      expect(result.scores).toHaveProperty('example');
-      expect(result.scores).toHaveProperty('reference');
-      expect(result.scores).toHaveProperty('admin');
-      expect(result.scores).toHaveProperty('plan');
+      for (const tier of TIERS) {
+        expect(result.scores).toHaveProperty(tier);
+      }
     });
   });
 
@@ -197,12 +199,17 @@ Returns a user by ID.
       expect(isValidTier('standard')).toBe(true);
       expect(isValidTier('admin')).toBe(true);
       expect(isValidTier('plan')).toBe(true);
+      expect(isValidTier('fact')).toBe(true);
+      expect(isValidTier('incident-narrative')).toBe(true);
+      expect(isValidTier('incident-facts')).toBe(true);
     });
 
     it('should return false for invalid tiers', () => {
       expect(isValidTier('invalid')).toBe(false);
       expect(isValidTier('')).toBe(false);
       expect(isValidTier('GUIDE')).toBe(false);
+      expect(isValidTier('incident')).toBe(false); // must be incident-narrative or incident-facts
+      expect(isValidTier('playbook-symptoms')).toBe(false); // symptoms is a field, not a tier
     });
   });
 
@@ -212,6 +219,107 @@ Returns a user by ID.
       expect(getTierDisplayName('standard')).toBe('Standard');
       expect(getTierDisplayName('admin')).toBe('Admin');
       expect(getTierDisplayName('plan')).toBe('Plan');
+    });
+  });
+
+  // --- 2.3.0: knowledge-base tiers ---
+  describe('LIFECYCLE_TRACKED_TIERS (2.3.0)', () => {
+    it('includes plan, fact, incident-narrative, incident-facts', () => {
+      expect(LIFECYCLE_TRACKED_TIERS).toContain('plan');
+      expect(LIFECYCLE_TRACKED_TIERS).toContain('fact');
+      expect(LIFECYCLE_TRACKED_TIERS).toContain('incident-narrative');
+      expect(LIFECYCLE_TRACKED_TIERS).toContain('incident-facts');
+    });
+
+    it('does NOT include doc-style tiers', () => {
+      expect(LIFECYCLE_TRACKED_TIERS).not.toContain('guide');
+      expect(LIFECYCLE_TRACKED_TIERS).not.toContain('standard');
+      expect(LIFECYCLE_TRACKED_TIERS).not.toContain('example');
+      expect(LIFECYCLE_TRACKED_TIERS).not.toContain('reference');
+      expect(LIFECYCLE_TRACKED_TIERS).not.toContain('admin');
+    });
+
+    it('isLifecycleTrackedTier returns true only for lifecycle tiers', () => {
+      expect(isLifecycleTrackedTier('plan')).toBe(true);
+      expect(isLifecycleTrackedTier('fact')).toBe(true);
+      expect(isLifecycleTrackedTier('incident-narrative')).toBe(true);
+      expect(isLifecycleTrackedTier('incident-facts')).toBe(true);
+      expect(isLifecycleTrackedTier('guide')).toBe(false);
+      expect(isLifecycleTrackedTier('admin')).toBe(false);
+      expect(isLifecycleTrackedTier(undefined)).toBe(false);
+      expect(isLifecycleTrackedTier(null)).toBe(false);
+      expect(isLifecycleTrackedTier('')).toBe(false);
+      expect(isLifecycleTrackedTier('FACT')).toBe(false);
+    });
+  });
+
+  describe('fact tier (2.3.0)', () => {
+    it('TIER_DEFINITIONS.fact has the right shape', () => {
+      const def = TIER_DEFINITIONS.fact;
+      expect(def).toBeDefined();
+      expect(def.id).toBe('fact');
+      expect(def.name).toBe('Fact');
+      expect(def.indicators).toContain('claim');
+      expect(def.indicators).toContain('confidence');
+      expect(def.indicators).toContain('provenance');
+    });
+
+    it('classifyTier scores fact-shaped content into the fact tier', () => {
+      const factContent = `
+# Alloy reads env only at entrypoint
+
+## Claim
+Grafana Alloy reads environment variables at entrypoint only, never refreshing them mid-run.
+
+## How to verify
+\`docker exec alloy printenv VAR\` after restart shows the new value; without restart shows old.
+
+## Consequences
+Updating Vault tokens via .env requires a container restart, not a config reload.
+
+## Provenance
+Confidence: high. Last verified: 2026-05-14.
+`;
+      const result = classifyTier(factContent);
+      expect(result.tier).toBe('fact');
+    });
+  });
+
+  describe('incident-narrative tier (2.3.0)', () => {
+    it('TIER_DEFINITIONS["incident-narrative"] has the right shape', () => {
+      const def = TIER_DEFINITIONS['incident-narrative'];
+      expect(def).toBeDefined();
+      expect(def.id).toBe('incident-narrative');
+      expect(def.name).toBe('Incident narrative');
+      expect(def.indicators).toContain('postmortem');
+      expect(def.indicators).toContain('severity');
+      expect(def.indicators).toContain('root cause');
+    });
+
+    it('classifyTier scores postmortem-shaped content into incident-narrative', () => {
+      const postmortemContent = `
+# Postmortem: Vault Down on Auth-Staging
+
+## Timeline
+- 14:02 — Alert fires for Vault on-call
+- 14:05 — On-call investigates, finds Vault is fine
+- 14:15 — Root cause identified: Alloy scrape worker stuck
+
+## Root Cause
+Grafana Alloy's scrape worker was stuck on a stale connection.
+
+## Impact
+Severity: high. False positive page during off-hours.
+
+## Resolution
+Restarted Alloy container.
+
+## Lessons Learned
+- Alloy can produce false-positive metric outages
+- On-call playbook should check Alloy before assuming Vault outage
+`;
+      const result = classifyTier(postmortemContent);
+      expect(result.tier).toBe('incident-narrative');
     });
   });
 

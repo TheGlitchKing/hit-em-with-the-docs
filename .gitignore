@@ -47,3 +47,4 @@ tests/.tmp/
 
 # Claude Code session files
 .claude/
+.planning/

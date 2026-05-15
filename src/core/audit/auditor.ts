@@ -5,11 +5,13 @@ import { parseFrontmatter } from '../../utils/frontmatter.js';
 import { logger } from '../../utils/logger.js';
 import {
   validatePartialMetadata,
+  validateKnowledgeBaseFields,
   getMissingRequiredFields,
   type PartialDocumentMetadata,
 } from '../metadata/schema.js';
+import { KB_ERROR_SEVERITY, type KbErrorCode } from '../metadata/errors.js';
 import { detectDomainFromPath } from '../domains/detector.js';
-import { isValidTier } from '../domains/classifier.js';
+import { isValidTier, TIERS } from '../domains/classifier.js';
 import { isValidDomain } from '../domains/constants.js';
 import { checkNamingConvention, checkFilePlacement } from './rules.js';
 
@@ -18,6 +20,13 @@ export interface AuditOptions {
   domain?: string;
   issuesOnly?: boolean;
   silent?: boolean;
+  /**
+   * Strict mode: when true, the `audit` CLI command will exit non-zero on
+   * ANY error-severity issue, including the warning-only knowledge-base
+   * checks (e.g. FACT_VERIFY_COMMAND_MULTILINE_SHEBANG). Has no effect on
+   * the AuditResult itself — it's a flag the CLI inspects.
+   */
+  strict?: boolean;
 }
 
 export interface AuditResult {
@@ -36,6 +45,12 @@ export interface AuditIssue {
   message: string;
   fixable: boolean;
   suggestion?: string;
+  /**
+   * Knowledge-base error code (2.3.0+), populated when this issue came from
+   * a KB-specific validator (fact / incident / symptoms). Lets tooling switch
+   * on specific violation kinds without substring-matching the message.
+   */
+  code?: KbErrorCode;
 }
 
 export interface AuditStats {
@@ -243,7 +258,23 @@ async function auditFile(filePath: string, docsPath: string): Promise<AuditIssue
         severity: 'error',
         message: `Invalid tier: ${data.tier}`,
         fixable: true,
-        suggestion: 'Valid tiers: guide, standard, example, reference, admin',
+        suggestion: `Valid tiers: ${TIERS.join(', ')}`,
+      });
+    }
+
+    // Knowledge-base primitive validation (fact / incident-narrative /
+    // incident-facts / symptoms). Runs after the partial-schema check so
+    // we don't double-report missing universal fields.
+    const kbErrors = validateKnowledgeBaseFields(data as Record<string, unknown>);
+    for (const err of kbErrors) {
+      const severity = KB_ERROR_SEVERITY[err.code];
+      issues.push({
+        file: relPath,
+        rule: `metadata-${err.code.toLowerCase().replace(/_/g, '-')}`,
+        severity,
+        message: err.message,
+        fixable: false,
+        code: err.code,
       });
     }
 
