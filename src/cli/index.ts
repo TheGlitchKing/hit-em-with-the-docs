@@ -479,15 +479,23 @@ program
 
 program
   .command('migrate-incident <flat-file>')
-  .description('Convert a legacy flat-file incident into the folder form (narrative.md + facts.md)')
+  .description('Convert a legacy flat-file incident into the folder form (narrative.md + facts.md). Always writes to <vault-root>/incidents/<slug>/.')
   .option('--dry-run', 'Preview the migration without writing', false)
+  .option('--force', 'Migrate even if a folder already exists at the canonical or legacy location (overwrites)', false)
   .action(async (flatFile, options) => {
-    const flatFilePath = resolve(process.cwd(), flatFile);
+    const projectRoot = process.cwd();
+    const flatFilePath = resolve(projectRoot, flatFile);
     const { migrateIncident } = await import('../core/knowledge-base/migrate.js');
+    const { loadPluginConfig, resolveVaultRoot } = await import('../utils/config.js');
+
+    const config = await loadPluginConfig(projectRoot);
+    const vaultRoot = resolveVaultRoot(projectRoot, config);
 
     const result = await migrateIncident({
       flatFilePath,
+      vaultRoot,
       dryRun: options.dryRun,
+      force: options.force,
     });
 
     logger.header(`hewtd migrate-incident`);
@@ -506,8 +514,79 @@ program
       logger.info(`  facts:     ${result.factsPath}`);
       logger.info(`  evidence:  ${result.evidencePath} (empty)`);
       logger.info(`  original:  ${result.flatFilePath}.migrated (renamed for rollback)`);
+    } else if (result.action === 'already_migrated') {
+      logger.warn(`Already migrated.`);
+      if (result.existingLocation === 'legacy') {
+        logger.warn(`  Existing folder is at the 2.3.0 legacy location: ${result.narrativePath}`);
+        logger.warn(`  Run \`hewtd fix-legacy-layout\` to relocate it under incidents/.`);
+      } else {
+        logger.info(`  Existing folder: ${result.narrativePath}`);
+      }
+      logger.info(`  Use --force to re-migrate (overwrites).`);
+    }
+  });
+
+program
+  .command('fix-legacy-layout')
+  .description('Relocate incident folders written by buggy 2.3.0 migrate-incident into the canonical <vault>/incidents/ parent, and rewrite any provenance: refs in fact files. Idempotent.')
+  .option('--dry-run', 'Report what would be moved without writing', false)
+  .action(async (options) => {
+    const projectRoot = process.cwd();
+    const { fixLegacyLayout } = await import(
+      '../core/knowledge-base/fix-legacy-layout.js'
+    );
+    const { loadPluginConfig, resolveVaultRoot } = await import(
+      '../utils/config.js'
+    );
+
+    const config = await loadPluginConfig(projectRoot);
+    const vaultRoot = resolveVaultRoot(projectRoot, config);
+
+    const result = await fixLegacyLayout({
+      vaultRoot,
+      projectRoot,
+      dryRun: options.dryRun,
+    });
+
+    logger.header(`hewtd fix-legacy-layout`);
+    logger.info(`Vault root: ${result.vaultRoot}`);
+    logger.info(`Action:     ${result.action}`);
+
+    if (result.action === 'no_op') {
+      logger.success('No legacy-layout incident folders found. Nothing to do.');
+      return;
+    }
+
+    if (result.moved.length > 0) {
+      logger.info('');
+      logger.info(`Moved ${result.moved.length} folder${result.moved.length === 1 ? '' : 's'}:`);
+      for (const m of result.moved) {
+        logger.info(`  ${m.from} → ${m.to}`);
+      }
+    }
+
+    if (result.rewrittenProvenance.length > 0) {
+      logger.info('');
+      logger.info(`Rewrote ${result.rewrittenProvenance.length} provenance reference${result.rewrittenProvenance.length === 1 ? '' : 's'}:`);
+      for (const r of result.rewrittenProvenance) {
+        logger.info(`  ${r.factPath}: ${r.oldRef} → ${r.newRef}`);
+      }
+    }
+
+    if (result.skipped.length > 0) {
+      logger.warn('');
+      logger.warn(`Skipped ${result.skipped.length}:`);
+      for (const s of result.skipped) {
+        logger.warn(`  ${s.path} — ${s.reason}`);
+      }
+    }
+
+    if (result.action === 'dry_run') {
+      logger.info('');
+      logger.info('Dry-run — no files were moved. Re-run without --dry-run to apply.');
     } else {
-      logger.warn(`Already migrated. Folder exists: ${result.targetFolder}`);
+      logger.success('');
+      logger.success('Done. Run `hewtd maintain` to regenerate indexes.');
     }
   });
 

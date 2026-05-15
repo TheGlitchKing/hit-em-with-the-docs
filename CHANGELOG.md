@@ -2,6 +2,99 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] — 2026-05-15
+
+Bug fix + recovery command for the 2.3.0 `migrate-incident` target-path
+issue. No breaking changes to the public API (`src/index.ts` exports
+unchanged). New CLI command `hewtd fix-legacy-layout` unblocks any
+consumer who already ran the buggy 2.3.0 migrator.
+
+### Fixed
+
+- **`migrate-incident` now writes to `<vault-root>/incidents/<slug>/`**
+  (the canonical location the `incidents/INDEX.md` generator scans).
+  Previously, the target was derived from the flat file's parent
+  directory, which produced folders OUTSIDE `<vault-root>/incidents/`
+  when the source lived at the vault root. The `incidents/INDEX.md`
+  generator missed those folders silently — `hewtd maintain` would
+  report `Generated 0 incidents` despite multiple migrations having
+  run. Discovered in real-world use (4 migrations in the investorhub
+  repo on 2026-05-14, all required a manual `mv` to populate the
+  index).
+
+### Added
+
+- **`hewtd fix-legacy-layout`** — relocates 2.3.0-buggy incident folders
+  into `<vault-root>/incidents/`. Detects legacy folders by walking one
+  level under the vault root and matching folders that:
+    1. Contain a valid `narrative.md`
+    2. Have `tier: incident-narrative` in frontmatter
+    3. Are NOT already under `incidents/`, `facts/`, or `symptoms/`
+
+  Moves each into `<vault-root>/incidents/<slug>/`. Refuses to clobber
+  an existing canonical folder (reports `skipped` with reason). Also
+  rewrites `provenance:` references in `<vault-root>/facts/*.md` that
+  pointed at the moved folders (handles both fully-qualified paths
+  like `.documentation/knowledge-base/<slug>/` and bare-slug refs).
+  Idempotent — re-running on a clean vault is a no-op. Supports
+  `--dry-run` for safe preview.
+
+- **`migrate-incident --force`** flag. When a folder already exists at
+  the canonical or legacy location, the default behavior is to no-op
+  with a warning. `--force` overrides and proceeds (overwrites).
+
+- **`migrate-incident` legacy-detection feedback.** When an
+  already-migrated folder is detected at the 2.3.0-buggy location, the
+  CLI surfaces it explicitly and suggests running `fix-legacy-layout`:
+
+  ```
+  Already migrated.
+    Existing folder is at the 2.3.0 legacy location: .../foo/narrative.md
+    Run `hewtd fix-legacy-layout` to relocate it under incidents/.
+    Use --force to re-migrate (overwrites).
+  ```
+
+### Internal API
+
+- `migrateIncident()` now **requires** an explicit `vaultRoot`
+  parameter. The 2.3.0 signature inferred the target from
+  `dirname(flatFilePath)`, which was the source of the bug. This is a
+  breaking change to the unexported `core/knowledge-base/migrate.ts`
+  surface, but `migrate.ts` was never re-exported via `src/index.ts`,
+  so no public-API consumers are affected.
+
+- New `fixLegacyLayout()` function in
+  `core/knowledge-base/fix-legacy-layout.ts`. Not exported from the
+  public API surface; called via the CLI command.
+
+### Tests
+
+- **241 passing** (was 230 at 2.3.0; +11 new).
+- New: `tests/unit/knowledge-base/fix-legacy-layout.test.ts` — 8 tests
+  covering move, no-op, reserved-dir safety, provenance rewrite (both
+  fully-qualified and bare-slug refs), dry-run, decoy-tier skip,
+  destination-collision refusal.
+- Extended: `tests/unit/knowledge-base/migrate.test.ts` — 7 tests
+  (was 4), new coverage for canonical target path, automatic
+  `incidents/` parent creation, legacy-location idempotency detection,
+  and `--force` behavior.
+
+### Migration for consumers stuck on 2.3.0 layout
+
+```bash
+# Preview what would move
+npx --no @theglitchking/hit-em-with-the-docs fix-legacy-layout --dry-run
+
+# Apply the relocation
+npx --no @theglitchking/hit-em-with-the-docs fix-legacy-layout
+
+# Regenerate indexes
+npx --no @theglitchking/hit-em-with-the-docs maintain
+```
+
+Idempotent — re-running on a clean vault is a no-op with a status
+report. Safe to run multiple times.
+
 ## [2.3.0] — 2026-05-14
 
 Additive minor release. **No breaking changes.** Existing tiers (guide,

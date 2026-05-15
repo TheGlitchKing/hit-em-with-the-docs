@@ -1,15 +1,29 @@
 /**
- * Flat-file incident → folder migration (2.3.0 PR3).
+ * Flat-file incident → folder migration (2.3.0 PR3, target-path fix in 2.4.0).
  *
- * Reads a legacy flat-file incident (e.g. `knowledge-base/2026-04-23-foo.md`)
- * and converts it into the folder form:
+ * Reads a legacy flat-file incident and converts it into the folder form
+ * AT THE CANONICAL VAULT LOCATION:
  *
- *   <flat-file>.md  →  <slug>/narrative.md
- *                      <slug>/facts.md (skeleton)
- *                      <slug>/evidence/ (empty, ready for artifacts)
+ *   <flat-file>.md  →  <vault-root>/incidents/<slug>/narrative.md
+ *                      <vault-root>/incidents/<slug>/facts.md (skeleton)
+ *                      <vault-root>/incidents/<slug>/evidence/ (empty)
  *
- * Idempotent: re-running on an already-migrated incident detects the folder
- * exists and warns + no-ops.
+ * In 2.3.0 the target was derived from the flat file's parent directory,
+ * which produced folders OUTSIDE `<vault-root>/incidents/` when the source
+ * was at the vault root. The `incidents/INDEX.md` generator scans only
+ * `<vault-root>/incidents/<slug>/narrative.md` and silently missed those
+ * folders. 2.4.0 fixes this by always writing under `<vault-root>/incidents/`.
+ *
+ * Idempotency:
+ *   - If a valid `narrative.md` exists at EITHER the new path (canonical)
+ *     OR the legacy path (`<source-parent>/<slug>/narrative.md`), the
+ *     migration is treated as already done — no-op unless `--force`.
+ *   - This protects against double-migration and is robust against
+ *     consumers who already migrated under the 2.3.0 buggy layout.
+ *
+ * For consumers stuck on the 2.3.0 buggy layout, see `fixLegacyLayout()`
+ * which moves stale folders into `<vault-root>/incidents/` and rewrites
+ * any fact `provenance:` references.
  */
 
 import { readFile, writeFile, mkdir, rename } from 'fs/promises';
@@ -20,14 +34,34 @@ import matter from 'gray-matter';
 export interface MigrateIncidentOptions {
   /** Absolute path to the flat-file incident markdown. */
   flatFilePath: string;
+  /**
+   * Absolute path to the vault root. The migrated folder lands at
+   * `<vaultRoot>/incidents/<slug>/`. Required since 2.4.0 — the 2.3.0
+   * "sibling of the flat file" behavior was the source of the path bug.
+   */
+  vaultRoot: string;
   /** If true, returns the migration plan without writing. */
   dryRun?: boolean;
+  /**
+   * If true, proceed with migration even if a folder already exists at
+   * the canonical or legacy location. Used to recover from a partial
+   * migration.
+   */
+  force?: boolean;
 }
 
 export interface MigrateIncidentResult {
   flatFilePath: string;
+  /** The canonical target — always under `<vaultRoot>/incidents/`. */
   targetFolder: string;
   action: 'migrated' | 'already_migrated' | 'dry_run';
+  /**
+   * Populated when `action === 'already_migrated'` to indicate WHERE the
+   * existing migration was found. `'new'` = canonical `<vault>/incidents/`;
+   * `'legacy'` = 2.3.0-style sibling-of-flat-file location. Helps consumers
+   * decide whether to run `fix-legacy-layout`.
+   */
+  existingLocation?: 'new' | 'legacy';
   narrativePath: string;
   factsPath: string;
   evidencePath: string;
@@ -40,7 +74,7 @@ export interface MigrateIncidentResult {
 export async function migrateIncident(
   options: MigrateIncidentOptions
 ): Promise<MigrateIncidentResult> {
-  const { flatFilePath, dryRun = false } = options;
+  const { flatFilePath, vaultRoot, dryRun = false, force = false } = options;
 
   const sourceContent = await readFile(flatFilePath, 'utf-8');
   const parsed = matter(sourceContent);
@@ -56,11 +90,15 @@ export async function migrateIncident(
       ? idFromFrontmatter
       : flatBase;
 
-  const parentDir = dirname(flatFilePath);
-  const targetFolder = join(parentDir, folderSlug);
+  // Canonical target: <vault-root>/incidents/<slug>/
+  const targetFolder = join(vaultRoot, 'incidents', folderSlug);
   const narrativePath = join(targetFolder, 'narrative.md');
   const factsPath = join(targetFolder, 'facts.md');
   const evidencePath = join(targetFolder, 'evidence');
+
+  // Legacy 2.3.0 location: <source-parent>/<slug>/
+  const legacyTargetFolder = join(dirname(flatFilePath), folderSlug);
+  const legacyNarrativePath = join(legacyTargetFolder, 'narrative.md');
 
   // Build narrative.md frontmatter — promote/normalize fields, set tier.
   const narrativeFrontmatter: Record<string, unknown> = {
@@ -98,18 +136,35 @@ export async function migrateIncident(
     factsFrontmatter
   );
 
-  // Idempotency check: if target folder already exists, no-op.
-  if (existsSync(targetFolder)) {
-    return {
-      flatFilePath,
-      targetFolder,
-      action: 'already_migrated',
-      narrativePath,
-      factsPath,
-      evidencePath,
-      narrativeContent,
-      factsContent,
-    };
+  // Idempotency check (unless --force): check BOTH new and legacy locations
+  // for an existing valid migration.
+  if (!force) {
+    if (existsSync(narrativePath)) {
+      return {
+        flatFilePath,
+        targetFolder,
+        action: 'already_migrated',
+        existingLocation: 'new',
+        narrativePath,
+        factsPath,
+        evidencePath,
+        narrativeContent,
+        factsContent,
+      };
+    }
+    if (existsSync(legacyNarrativePath)) {
+      return {
+        flatFilePath,
+        targetFolder,
+        action: 'already_migrated',
+        existingLocation: 'legacy',
+        narrativePath: legacyNarrativePath,
+        factsPath: join(legacyTargetFolder, 'facts.md'),
+        evidencePath: join(legacyTargetFolder, 'evidence'),
+        narrativeContent,
+        factsContent,
+      };
+    }
   }
 
   if (dryRun) {
@@ -125,7 +180,8 @@ export async function migrateIncident(
     };
   }
 
-  // Execute the migration.
+  // Ensure the canonical parent (<vault>/incidents/) exists. Generator
+  // already handles a missing dir; we should too.
   await mkdir(evidencePath, { recursive: true }); // also creates targetFolder
   await writeFile(narrativePath, narrativeContent, 'utf-8');
   await writeFile(factsPath, factsContent, 'utf-8');

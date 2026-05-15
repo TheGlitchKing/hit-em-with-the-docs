@@ -109,7 +109,7 @@ version: '1.0.0'
 
   it('runs the full pipeline end-to-end', async () => {
     // === Step 1: migrate-incident ===
-    const migration = await migrateIncident({ flatFilePath: legacyIncidentPath });
+    const migration = await migrateIncident({ flatFilePath: legacyIncidentPath, vaultRoot });
     expect(migration.action).toBe('migrated');
 
     const incidentFolder = migration.targetFolder;
@@ -188,10 +188,10 @@ version: '1.0.0'
 
   it('re-running each step is idempotent', async () => {
     // Migrate twice
-    await migrateIncident({ flatFilePath: legacyIncidentPath });
+    await migrateIncident({ flatFilePath: legacyIncidentPath, vaultRoot });
     // Plant a stale flat file (simulating user re-running by mistake)
     await writeFile(legacyIncidentPath, '---\ntitle: Stale\n---\n# Stale\n', 'utf-8');
-    const second = await migrateIncident({ flatFilePath: legacyIncidentPath });
+    const second = await migrateIncident({ flatFilePath: legacyIncidentPath, vaultRoot });
     expect(second.action).toBe('already_migrated');
 
     // Extract the same fact twice
