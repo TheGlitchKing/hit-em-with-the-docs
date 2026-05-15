@@ -3,6 +3,7 @@ import {
   MetadataSchema,
   validateMetadata,
   validatePartialMetadata,
+  validateKnowledgeBaseFields,
   getMissingRequiredFields,
   getMissingFields,
   calculateMetadataCompleteness,
@@ -10,6 +11,7 @@ import {
   ALL_METADATA_FIELDS,
   getFieldCategory,
 } from '../../../src/core/metadata/schema.js';
+import { KB_ERROR_CODES } from '../../../src/core/metadata/errors.js';
 
 describe('Metadata Schema', () => {
   describe('REQUIRED_FIELDS', () => {
@@ -427,6 +429,390 @@ describe('Metadata Schema', () => {
         });
         expect(result.valid).toBe(false);
       });
+    });
+  });
+
+  // --- 2.3.0: knowledge-base primitives (fact / incident-narrative / incident-facts / symptoms) ---
+
+  describe('fact tier (2.3.0)', () => {
+    const validFact = {
+      title: 'Alloy reads env only at entrypoint',
+      tier: 'fact',
+      domains: ['observability'],
+      status: 'active',
+      last_updated: '2026-05-14',
+      id: 'alloy-env-set-at-entrypoint-only',
+      confidence: 'high',
+      last_verified: '2026-05-14',
+      provenance: ['incidents/2026-05-14-vault-alloy-stuck/'],
+    };
+
+    it('accepts a valid fact (no version required)', () => {
+      const result = validateMetadata(validFact);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('accepts a fact WITH version (optional, not forbidden)', () => {
+      const result = validateMetadata({ ...validFact, version: '1.0.0' });
+      expect(result.valid).toBe(true);
+    });
+
+    it('accepts plan-style status values for fact tier (lifecycle-tracked)', () => {
+      for (const status of ['draft', 'active', 'deprecated', 'archived', 'weakened']) {
+        const result = validateMetadata({ ...validFact, status });
+        expect(result.valid, `fact status "${status}" should be valid`).toBe(true);
+      }
+    });
+
+    it('validateKnowledgeBaseFields flags FACT_MISSING_ID when id absent', () => {
+      const errs = validateKnowledgeBaseFields({ ...validFact, id: undefined });
+      expect(errs.some((e) => e.code === KB_ERROR_CODES.FACT_MISSING_ID)).toBe(true);
+    });
+
+    it('flags FACT_MISSING_ID when id is not kebab-case', () => {
+      const errs = validateKnowledgeBaseFields({ ...validFact, id: 'NotKebabCase' });
+      expect(errs.some((e) => e.code === KB_ERROR_CODES.FACT_MISSING_ID)).toBe(true);
+    });
+
+    it('flags FACT_INVALID_CONFIDENCE when confidence is out of enum', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...validFact,
+        confidence: 'definitely',
+      });
+      expect(errs.some((e) => e.code === KB_ERROR_CODES.FACT_INVALID_CONFIDENCE)).toBe(
+        true
+      );
+    });
+
+    it('flags FACT_MISSING_LAST_VERIFIED when missing or wrong format', () => {
+      const errsMissing = validateKnowledgeBaseFields({
+        ...validFact,
+        last_verified: undefined,
+      });
+      expect(
+        errsMissing.some((e) => e.code === KB_ERROR_CODES.FACT_MISSING_LAST_VERIFIED)
+      ).toBe(true);
+
+      const errsBadFormat = validateKnowledgeBaseFields({
+        ...validFact,
+        last_verified: '05/14/2026',
+      });
+      expect(
+        errsBadFormat.some((e) => e.code === KB_ERROR_CODES.FACT_MISSING_LAST_VERIFIED)
+      ).toBe(true);
+    });
+
+    it('flags FACT_MISSING_PROVENANCE when provenance is empty or absent', () => {
+      const errsEmpty = validateKnowledgeBaseFields({
+        ...validFact,
+        provenance: [],
+      });
+      expect(
+        errsEmpty.some((e) => e.code === KB_ERROR_CODES.FACT_MISSING_PROVENANCE)
+      ).toBe(true);
+
+      const errsMissing = validateKnowledgeBaseFields({
+        ...validFact,
+        provenance: undefined,
+      });
+      expect(
+        errsMissing.some((e) => e.code === KB_ERROR_CODES.FACT_MISSING_PROVENANCE)
+      ).toBe(true);
+    });
+
+    it('flags FACT_VERIFY_COMMAND_MULTILINE_SHEBANG for multi-line verify_command without shebang', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...validFact,
+        verify_command: 'echo hello\necho world',
+      });
+      expect(
+        errs.some((e) => e.code === KB_ERROR_CODES.FACT_VERIFY_COMMAND_MULTILINE_SHEBANG)
+      ).toBe(true);
+    });
+
+    it('does NOT flag multi-line verify_command WITH shebang', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...validFact,
+        verify_command: '#!/usr/bin/env bash\necho hello\necho world',
+      });
+      expect(
+        errs.some((e) => e.code === KB_ERROR_CODES.FACT_VERIFY_COMMAND_MULTILINE_SHEBANG)
+      ).toBe(false);
+    });
+
+    it('getMissingRequiredFields reports fact extensions but not version', () => {
+      const missing = getMissingRequiredFields({
+        title: 'My Fact',
+        tier: 'fact',
+        domains: ['observability'],
+        status: 'active',
+        last_updated: '2026-05-14',
+        // missing: id, confidence, last_verified, provenance
+      });
+      expect(missing).toContain('id');
+      expect(missing).toContain('confidence');
+      expect(missing).toContain('last_verified');
+      expect(missing).toContain('provenance');
+      expect(missing).not.toContain('version');
+    });
+  });
+
+  describe('incident-narrative tier (2.3.0)', () => {
+    const validIncident = {
+      title: 'Vault Down on Auth-Staging',
+      tier: 'incident-narrative',
+      domains: ['incidents', 'observability'],
+      status: 'active',
+      last_updated: '2026-05-14',
+      id: '2026-05-14-vault-alloy-stuck',
+      date: '2026-05-14',
+      severity: 'high',
+      resolution_status: 'resolved',
+      components: ['vault', 'alloy', 'grafana'],
+    };
+
+    it('accepts a valid incident-narrative (no version required)', () => {
+      const result = validateMetadata(validIncident);
+      expect(result.valid).toBe(true);
+    });
+
+    it('flags missing date', () => {
+      const errs = validateKnowledgeBaseFields({ ...validIncident, date: undefined });
+      expect(
+        errs.some((e) => e.code === KB_ERROR_CODES.INCIDENT_NARRATIVE_MISSING_DATE)
+      ).toBe(true);
+    });
+
+    it('flags invalid severity', () => {
+      const errs = validateKnowledgeBaseFields({ ...validIncident, severity: 'sev0' });
+      expect(
+        errs.some((e) => e.code === KB_ERROR_CODES.INCIDENT_NARRATIVE_INVALID_SEVERITY)
+      ).toBe(true);
+    });
+
+    it('flags missing resolution_status', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...validIncident,
+        resolution_status: undefined,
+      });
+      expect(
+        errs.some(
+          (e) => e.code === KB_ERROR_CODES.INCIDENT_NARRATIVE_MISSING_RESOLUTION_STATUS
+        )
+      ).toBe(true);
+    });
+
+    it('flags invalid resolution_status enum', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...validIncident,
+        resolution_status: 'pending',
+      });
+      expect(
+        errs.some(
+          (e) => e.code === KB_ERROR_CODES.INCIDENT_NARRATIVE_INVALID_RESOLUTION_STATUS
+        )
+      ).toBe(true);
+    });
+
+    it('flags empty components', () => {
+      const errs = validateKnowledgeBaseFields({ ...validIncident, components: [] });
+      expect(
+        errs.some(
+          (e) => e.code === KB_ERROR_CODES.INCIDENT_NARRATIVE_MISSING_COMPONENTS
+        )
+      ).toBe(true);
+    });
+
+    it('flags id that does not match YYYY-MM-DD-slug pattern', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...validIncident,
+        id: 'not-an-incident-id',
+      });
+      expect(
+        errs.some((e) => e.code === KB_ERROR_CODES.INCIDENT_NARRATIVE_MISSING_DATE)
+      ).toBe(true);
+    });
+  });
+
+  describe('incident-facts tier (2.3.0)', () => {
+    const validBridge = {
+      title: 'Facts from 2026-05-14 vault-alloy-stuck',
+      tier: 'incident-facts',
+      domains: ['incidents'],
+      status: 'active',
+      last_updated: '2026-05-14',
+      incident_id: '2026-05-14-vault-alloy-stuck',
+      produced: ['alloy-env-set-at-entrypoint-only', 'vault-server-log-omits-metrics-403s'],
+    };
+
+    it('accepts a valid incident-facts bridge', () => {
+      const result = validateMetadata(validBridge);
+      expect(result.valid).toBe(true);
+    });
+
+    it('accepts empty produced array (incident may have produced no new facts)', () => {
+      const result = validateMetadata({ ...validBridge, produced: [] });
+      expect(result.valid).toBe(true);
+    });
+
+    it('flags missing incident_id', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...validBridge,
+        incident_id: undefined,
+      });
+      expect(
+        errs.some((e) => e.code === KB_ERROR_CODES.INCIDENT_FACTS_MISSING_INCIDENT_ID)
+      ).toBe(true);
+    });
+
+    it('flags missing produced field (must be an array, even if empty)', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...validBridge,
+        produced: undefined,
+      });
+      expect(
+        errs.some((e) => e.code === KB_ERROR_CODES.INCIDENT_FACTS_MISSING_PRODUCED)
+      ).toBe(true);
+    });
+
+    it('getMissingRequiredFields treats empty produced array as PRESENT (allowed)', () => {
+      const missing = getMissingRequiredFields({
+        ...validBridge,
+        produced: [],
+      });
+      expect(missing).not.toContain('produced');
+    });
+  });
+
+  describe('symptoms field (2.3.0) — playbook frontmatter', () => {
+    const playbookBase = {
+      title: 'Grafana Alerts Runbook',
+      tier: 'admin',
+      domains: ['observability'],
+      status: 'active',
+      last_updated: '2026-05-14',
+      version: '1.0.0',
+    };
+
+    it('accepts a playbook with a valid symptoms block (any tier)', () => {
+      const result = validateMetadata({
+        ...playbookBase,
+        symptoms: [
+          {
+            alert_name: 'Vault Down — auth-staging',
+            severity: 'critical',
+            target: '#vault-down-auth-staging',
+            cites: ['alloy-env-set-at-entrypoint-only'],
+          },
+          {
+            user_phrase: ['metrics missing', 'scrape down'],
+            target: '#vault-down-auth-staging',
+            cites: ['alloy-env-set-at-entrypoint-only'],
+          },
+          {
+            error_pattern: '^Vault timeout.*$',
+            target: '#vault-timeout',
+            cites: ['vault-server-log-omits-metrics-403s'],
+          },
+        ],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('flags PLAYBOOK_SYMPTOM_MISSING_KEY when none of alert_name/user_phrase/error_pattern present', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...playbookBase,
+        symptoms: [{ target: '#anchor', cites: ['some-fact'] }],
+      });
+      expect(
+        errs.some((e) => e.code === KB_ERROR_CODES.PLAYBOOK_SYMPTOM_MISSING_KEY)
+      ).toBe(true);
+    });
+
+    it('flags PLAYBOOK_SYMPTOM_MISSING_TARGET when target absent', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...playbookBase,
+        symptoms: [{ alert_name: 'Some Alert', cites: ['some-fact'] }],
+      });
+      expect(
+        errs.some((e) => e.code === KB_ERROR_CODES.PLAYBOOK_SYMPTOM_MISSING_TARGET)
+      ).toBe(true);
+    });
+
+    it('flags PLAYBOOK_SYMPTOM_MISSING_CITES when cites empty or absent', () => {
+      const errs = validateKnowledgeBaseFields({
+        ...playbookBase,
+        symptoms: [
+          { alert_name: 'Some Alert', target: '#anchor', cites: [] },
+        ],
+      });
+      expect(
+        errs.some((e) => e.code === KB_ERROR_CODES.PLAYBOOK_SYMPTOM_MISSING_CITES)
+      ).toBe(true);
+    });
+
+    it('does not flag anything when symptoms field is absent', () => {
+      const errs = validateKnowledgeBaseFields(playbookBase);
+      expect(errs).toEqual([]);
+    });
+  });
+
+  describe('backward compatibility (2.3.0 regression preservation)', () => {
+    it('existing guide doc with all 6 required fields still validates clean', () => {
+      const result = validateMetadata({
+        title: 'Setup Guide',
+        tier: 'guide',
+        domains: ['onboarding'],
+        status: 'active',
+        last_updated: '2026-05-14',
+        version: '1.0.0',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('existing plan tier (2.2.0) still validates without version', () => {
+      const result = validateMetadata({
+        title: 'Phase Plan',
+        tier: 'plan',
+        domains: ['planning'],
+        status: 'active',
+        last_updated: '2026-05-14',
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('REQUIRED_FIELDS length unchanged at 6 (additions are tier-specific extensions, not new universal requirements)', () => {
+      expect(REQUIRED_FIELDS).toHaveLength(6);
+    });
+
+    it('ALL_METADATA_FIELDS length unchanged at 21 (KB extensions are not universal fields)', () => {
+      expect(ALL_METADATA_FIELDS).toHaveLength(21);
+    });
+
+    it('validateKnowledgeBaseFields is a no-op for non-KB tiers', () => {
+      expect(
+        validateKnowledgeBaseFields({
+          title: 'Guide',
+          tier: 'guide',
+          domains: ['security'],
+          status: 'active',
+          last_updated: '2026-05-14',
+          version: '1.0.0',
+        })
+      ).toEqual([]);
+    });
+
+    it('validateKnowledgeBaseFields is a no-op for plan tier (existing 2.2.0 behavior preserved)', () => {
+      expect(
+        validateKnowledgeBaseFields({
+          title: 'My Plan',
+          tier: 'plan',
+          domains: ['planning'],
+          status: 'active',
+          last_updated: '2026-05-14',
+        })
+      ).toEqual([]);
     });
   });
 });

@@ -136,6 +136,11 @@ program
   .option('-d, --domain <domain>', 'Specific domain to audit')
   .option('-i, --issues-only', 'Show only issues', false)
   .option('-r, --report', 'Generate detailed report', false)
+  .option(
+    '--strict',
+    'Exit non-zero on ANY violation (including knowledge-base warnings); suitable for CI',
+    false
+  )
   .action(async (options) => {
     const docsPath = resolve(process.cwd(), options.path);
 
@@ -143,6 +148,7 @@ program
       docsPath,
       domain: options.domain,
       issuesOnly: options.issuesOnly,
+      strict: options.strict,
     });
 
     if (options.report) {
@@ -150,7 +156,23 @@ program
       logger.success(`Report saved: ${reportPath}`);
     }
 
-    if (result.failedFiles > 0) {
+    // Strict mode escalates: exit non-zero on any error-severity issue OR any
+    // KB-coded issue (including warning-severity ones like
+    // FACT_VERIFY_COMMAND_MULTILINE_SHEBANG). Non-KB warnings (naming
+    // convention, placement) do NOT fail strict mode — those are stylistic
+    // and don't represent knowledge-base integrity violations.
+    //
+    // Normal mode: exit non-zero only on per-file errors (existing behavior
+    // preserved from pre-2.3.0).
+    if (options.strict) {
+      const hasViolation = result.issues.some(
+        (i) => i.severity === 'error' || i.code !== undefined
+      );
+      if (hasViolation) {
+        logger.error('Strict mode: violations detected, exiting non-zero');
+        process.exit(1);
+      }
+    } else if (result.failedFiles > 0) {
       process.exit(1);
     }
   });

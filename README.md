@@ -10,6 +10,8 @@
 > You still need to remember to use this plugin when creating documentation! As projects grow, documentation needs to be created and maintained. You'll need to invoke this plugin or ask an LLM to create documentation for your features, workflows, or infrastructure. This plugin must be invoked to create, update, or maintain your docs.
 
 > [!NOTE]
+> **New in 2.3.0 (PR1 of 3):** three new tiers — `"fact"`, `"incident-narrative"`, `"incident-facts"` — plus an optional `symptoms:` frontmatter field for any-tier playbooks. The `fact` tier is for atomic citable claims with verify commands; the two incident tiers cover postmortems + the facts they produced. `version` is optional for all three (they're lifecycle-tracked, like the 2.2.0 `plan` tier). A new `audit --strict` flag exits non-zero on any violation for CI gating. Four LLM-referenceable templates ship at `templates/knowledge-base/`. Full reference: [`docs/knowledge-base-primitives.md`](./docs/knowledge-base-primitives.md). Generators + new CLI commands ship in PR2/PR3.
+>
 > **New in 2.2.0:** the `tier` enum gains a `"plan"` value for [persistent-planning](https://github.com/TheGlitchKing/persistent-planning) lg-mode artifacts (phase / task / atom / notes documents), and the `version` and `status` fields are now conditionally relaxed for plan-tier docs (plans use lifecycle status, not semver). Existing tiers (guide / standard / example / reference / admin) are unchanged. See [`docs/plan-tier-frontmatter.md`](./docs/plan-tier-frontmatter.md) for the full reference.
 
 ---
