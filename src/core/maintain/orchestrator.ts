@@ -1,4 +1,4 @@
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { writeFile, mkdir } from 'fs/promises';
 import { logger } from '../../utils/logger.js';
 import { pathExists } from '../../utils/glob.js';
@@ -7,6 +7,15 @@ import { checkLinks, type LinkCheckResult } from '../links/checker.js';
 import { auditDocumentation, type AuditResult } from '../audit/auditor.js';
 import { DOMAINS } from '../domains/constants.js';
 import { formatDate } from '../metadata/generator.js';
+import {
+  loadPluginConfig,
+  resolveVaultRoot,
+  resolvePlaybookGlobs,
+} from '../../utils/config.js';
+import { buildCiterIndex } from '../knowledge-base/citers.js';
+import { generateFactsIndex } from '../../generators/facts-index.js';
+import { generateIncidentsIndex } from '../../generators/incidents-index.js';
+import { generateSymptomsIndex } from '../../generators/symptoms-index.js';
 
 export interface MaintainOptions {
   docsPath: string;
@@ -140,6 +149,16 @@ export async function runMaintenance(options: MaintainOptions): Promise<Maintain
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     result.errors.push(`Audit failed: ${message}`);
+  }
+
+  // Step 3.5: Knowledge-base indexes (2.3.0+) — only when a vault root
+  // exists. Backward-compat hard requirement: a project with no
+  // knowledge-base/ subtree must observe zero behavior change vs. 2.2.0.
+  try {
+    await maybeGenerateKbIndexes(docsPath, silent, result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    result.errors.push(`Knowledge-base index generation failed: ${message}`);
   }
 
   // Calculate overall health score
@@ -425,6 +444,50 @@ version: '1.0.0'
   await writeFile(reportPath, content, 'utf-8');
 
   return reportPath;
+}
+
+/**
+ * Generate the three knowledge-base indexes when a vault root exists.
+ * No-op (silent) when the vault root doesn't exist — backward-compat hard
+ * requirement: a 2.2.0-era project tree must observe zero behavior change.
+ */
+async function maybeGenerateKbIndexes(
+  docsPath: string,
+  silent: boolean,
+  result: MaintainResult
+): Promise<void> {
+  // Project root is the parent of docsPath (e.g. .documentation/ → project root).
+  // Config and playbook globs are resolved relative to the project root.
+  const projectRoot = dirname(docsPath);
+
+  const config = await loadPluginConfig(projectRoot);
+  const vaultRoot = resolveVaultRoot(projectRoot, config);
+
+  if (!(await pathExists(vaultRoot))) {
+    // No vault — backward-compat path. Don't even log.
+    return;
+  }
+
+  if (!silent) {
+    logger.subheader('Step 3.5: Knowledge-base Indexes');
+  }
+
+  const playbookGlobs = resolvePlaybookGlobs(projectRoot, config);
+  const index = await buildCiterIndex({ projectRoot, vaultRoot, playbookGlobs });
+
+  const factsPath = await generateFactsIndex({ vaultRoot, index });
+  const incidentsPath = await generateIncidentsIndex({ vaultRoot, index });
+  const symptomsPath = await generateSymptomsIndex({ vaultRoot, index });
+
+  if (!silent) {
+    logger.success(`Generated ${index.facts.size} facts → ${factsPath}`);
+    logger.success(`Generated ${index.incidents.size} incidents → ${incidentsPath}`);
+    logger.success(`Generated symptoms index → ${symptomsPath}`);
+  }
+
+  // Suppress unused-var: result is part of the signature for future use
+  // (e.g. surfacing KB stats into the maintenance report).
+  void result;
 }
 
 /**

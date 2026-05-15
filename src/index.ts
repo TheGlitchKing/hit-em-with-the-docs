@@ -43,3 +43,12 @@ export * from './core/discover/dependencies.js';
 export * from './reports/health-report.js';
 export * from './reports/audit-report.js';
 export * from './reports/link-report.js';
+
+// Knowledge-base primitives (2.3.0+)
+export * from './core/metadata/errors.js';
+export * from './core/knowledge-base/citers.js';
+export * from './generators/facts-index.js';
+export * from './generators/incidents-index.js';
+export * from './generators/symptoms-index.js';
+export * from './generators/table.js';
+export * from './utils/config.js';
