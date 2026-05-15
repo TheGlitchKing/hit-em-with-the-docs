@@ -311,6 +311,262 @@ program
     logger.table(headers, rows);
   });
 
+// --- 2.3.0: knowledge-base commands ---
+
+program
+  .command('find-citers <fact-id>')
+  .description('Find all playbooks and incidents that cite a fact')
+  .option('--json', 'Output as JSON', false)
+  .action(async (factId, options) => {
+    const projectRoot = process.cwd();
+    const { loadPluginConfig, resolveVaultRoot, resolvePlaybookGlobs } = await import(
+      '../utils/config.js'
+    );
+    const { buildCiterIndex, findCitersInIndex } = await import(
+      '../core/knowledge-base/citers.js'
+    );
+
+    const config = await loadPluginConfig(projectRoot);
+    const vaultRoot = resolveVaultRoot(projectRoot, config);
+    const playbookGlobs = resolvePlaybookGlobs(projectRoot, config);
+
+    const index = await buildCiterIndex({ projectRoot, vaultRoot, playbookGlobs });
+    const result = findCitersInIndex(index, factId);
+
+    if (options.json) {
+      logger.info(JSON.stringify(result, null, 2));
+      if (!result.fact_exists) process.exit(1);
+      return;
+    }
+
+    logger.header(`Citers for fact: ${factId}`);
+    if (!result.fact_exists) {
+      logger.error(`Fact not found in vault.`);
+      logger.info('Did you mean another fact id? Run `hewtd audit-facts` to see all known facts.');
+      process.exit(1);
+    }
+    logger.info('');
+    logger.info(`Citers (${result.citers.length}):`);
+    for (const c of result.citers) logger.info(`  - ${c}`);
+    logger.info('');
+    logger.info(`Incidents (produced): ${result.incidents_produced_in.join(', ') || '(none)'}`);
+    logger.info(`Incidents (strengthened): ${result.incidents_strengthened_by.join(', ') || '(none)'}`);
+    logger.info(`Incidents (weakened): ${result.incidents_weakened_by.join(', ') || '(none)'}`);
+  });
+
+program
+  .command('audit-facts')
+  .description('Report facts past last_verified + audit_window_days')
+  .option('--run-verify <fact-id>', 'Execute the fact\'s verify_command and update last_verified on success')
+  .option('--window <days>', 'Override audit_window_days', undefined)
+  .option('--json', 'Output as JSON', false)
+  .action(async (options) => {
+    const projectRoot = process.cwd();
+    const { loadPluginConfig, resolveVaultRoot, resolvePlaybookGlobs } = await import(
+      '../utils/config.js'
+    );
+    const { buildCiterIndex } = await import('../core/knowledge-base/citers.js');
+    const { auditFacts, runFactVerify } = await import('../core/knowledge-base/audit.js');
+
+    const config = await loadPluginConfig(projectRoot);
+    const vaultRoot = resolveVaultRoot(projectRoot, config);
+    const playbookGlobs = resolvePlaybookGlobs(projectRoot, config);
+    const window = options.window
+      ? parseInt(options.window, 10)
+      : config.vault.audit_window_days;
+
+    const index = await buildCiterIndex({ projectRoot, vaultRoot, playbookGlobs });
+
+    // --run-verify path
+    if (options.runVerify) {
+      const factId = options.runVerify;
+      const fact = index.facts.get(factId);
+      if (!fact) {
+        logger.error(`Fact not found: ${factId}`);
+        process.exit(1);
+      }
+      logger.header(`Running verify command for: ${factId}`);
+      const result = await runFactVerify({ fact: fact!, vaultRoot });
+      if (options.json) {
+        logger.info(JSON.stringify(result, null, 2));
+      } else {
+        logger.info(`exit code: ${result.exitCode}`);
+        if (result.stdout) logger.info(`stdout: ${result.stdout.trim()}`);
+        if (result.stderr) logger.info(`stderr: ${result.stderr.trim()}`);
+        if (result.updated) {
+          logger.success(`Updated last_verified to ${result.newLastVerified}`);
+        } else if (result.executed) {
+          logger.error('Verify command failed; last_verified not updated.');
+        }
+      }
+      process.exit(result.updated ? 0 : 1);
+    }
+
+    // List stale path
+    const audit = auditFacts({ index, auditWindowDays: window });
+
+    if (options.json) {
+      logger.info(JSON.stringify(audit, null, 2));
+      if (audit.stale.length > 0) process.exit(1);
+      return;
+    }
+
+    logger.header(`Stale facts (verified > ${window}d ago):`);
+    if (audit.stale.length === 0) {
+      logger.success('No stale facts.');
+    } else {
+      for (const s of audit.stale) {
+        logger.info(
+          `  ${s.id}    ${s.lastVerified}  (${s.daysSinceVerified}d)  confidence:${s.confidence ?? '?'}`
+        );
+      }
+      logger.info('');
+      logger.info('Run verify commands:');
+      logger.info(`  hewtd audit-facts --run-verify <fact-id>`);
+    }
+
+    if (audit.unverifiable.length > 0) {
+      logger.warn(`Unverifiable facts (malformed/missing last_verified): ${audit.unverifiable.length}`);
+      for (const u of audit.unverifiable) {
+        logger.info(`  ${u.id}    ${u.relPath}`);
+      }
+    }
+
+    if (audit.stale.length > 0) process.exit(1);
+  });
+
+program
+  .command('cite <fact-id>')
+  .description('Insert a cites: entry for the named fact into a playbook')
+  .option('-f, --file <path>', 'Path to the playbook to modify (required)')
+  .option('--alert-name <name>', 'Target the symptom entry with this exact alert_name')
+  .option('--user-phrase <phrase>', 'Target the symptom entry with this user_phrase')
+  .option('--error-pattern <pattern>', 'Target the symptom entry with this error_pattern')
+  .option('--dry-run', 'Preview the change without writing', false)
+  .action(async (factId, options) => {
+    if (!options.file) {
+      logger.error('--file <path> is required');
+      process.exit(1);
+    }
+    const playbookPath = resolve(process.cwd(), options.file);
+    const { cite } = await import('../core/knowledge-base/cite.js');
+
+    const symptomMatch: NonNullable<Parameters<typeof cite>[0]['symptomMatch']> = {};
+    if (options.alertName) symptomMatch.alert_name = options.alertName;
+    if (options.userPhrase) symptomMatch.user_phrase = options.userPhrase;
+    if (options.errorPattern) symptomMatch.error_pattern = options.errorPattern;
+
+    const citeOpts: Parameters<typeof cite>[0] = {
+      playbookPath,
+      factId,
+      dryRun: options.dryRun,
+    };
+    if (Object.keys(symptomMatch).length > 0) {
+      citeOpts.symptomMatch = symptomMatch;
+    }
+    const result = await cite(citeOpts);
+
+    logger.header(`hewtd cite: ${factId}`);
+    logger.info(`Playbook: ${result.playbookPath}`);
+    logger.info(`Action:   ${result.action}`);
+    logger.info(`Symptom:  index ${result.symptomIndex}`);
+    if (options.dryRun) {
+      logger.info('');
+      logger.info('--- proposed content ---');
+      logger.info(result.newContent);
+    }
+  });
+
+program
+  .command('migrate-incident <flat-file>')
+  .description('Convert a legacy flat-file incident into the folder form (narrative.md + facts.md)')
+  .option('--dry-run', 'Preview the migration without writing', false)
+  .action(async (flatFile, options) => {
+    const flatFilePath = resolve(process.cwd(), flatFile);
+    const { migrateIncident } = await import('../core/knowledge-base/migrate.js');
+
+    const result = await migrateIncident({
+      flatFilePath,
+      dryRun: options.dryRun,
+    });
+
+    logger.header(`hewtd migrate-incident`);
+    logger.info(`Source:        ${result.flatFilePath}`);
+    logger.info(`Target folder: ${result.targetFolder}`);
+    logger.info(`Action:        ${result.action}`);
+    if (result.action === 'dry_run') {
+      logger.info('');
+      logger.info('--- narrative.md ---');
+      logger.info(result.narrativeContent);
+      logger.info('--- facts.md ---');
+      logger.info(result.factsContent);
+    } else if (result.action === 'migrated') {
+      logger.success(`Migrated to ${result.targetFolder}`);
+      logger.info(`  narrative: ${result.narrativePath}`);
+      logger.info(`  facts:     ${result.factsPath}`);
+      logger.info(`  evidence:  ${result.evidencePath} (empty)`);
+      logger.info(`  original:  ${result.flatFilePath}.migrated (renamed for rollback)`);
+    } else {
+      logger.warn(`Already migrated. Folder exists: ${result.targetFolder}`);
+    }
+  });
+
+program
+  .command('extract-facts <incident-folder>')
+  .description('Write accepted fact specs to <vault>/facts/. Specs come from the /hit-em-with-the-docs:extract-facts slash command.')
+  .option(
+    '--accept <json>',
+    'JSON-encoded FactSpec array. Use single-quoted JSON: --accept \'[{"id":"...","title":"...","confidence":"high","claim":"..."}]\'',
+    undefined
+  )
+  .option('--dry-run', 'Preview without writing', false)
+  .action(async (incidentFolderArg, options) => {
+    if (!options.accept) {
+      logger.error(
+        '--accept <json> is required. This CLI is the WRITER; use the /hit-em-with-the-docs:extract-facts slash command for the LLM-driven proposer.'
+      );
+      process.exit(1);
+    }
+    let accept: unknown;
+    try {
+      accept = JSON.parse(options.accept);
+    } catch (err) {
+      logger.error(`--accept must be valid JSON: ${(err as Error).message}`);
+      process.exit(1);
+    }
+    if (!Array.isArray(accept)) {
+      logger.error('--accept must be a JSON array of FactSpec objects');
+      process.exit(1);
+    }
+
+    const projectRoot = process.cwd();
+    const incidentFolder = resolve(projectRoot, incidentFolderArg);
+    const { loadPluginConfig, resolveVaultRoot } = await import('../utils/config.js');
+    const { extractFacts } = await import('../core/knowledge-base/extract.js');
+
+    const config = await loadPluginConfig(projectRoot);
+    const vaultRoot = resolveVaultRoot(projectRoot, config);
+
+    // Trust the caller's JSON shape — the slash command produced it after
+    // the user accepted proposals. Runtime errors surface naturally.
+    const result = await extractFacts({
+      incidentFolder,
+      vaultRoot,
+      projectRoot,
+      accept: accept as Parameters<typeof extractFacts>[0]['accept'],
+      dryRun: options.dryRun,
+    });
+
+    logger.header(`hewtd extract-facts: ${result.incidentId}`);
+    for (const f of result.extractedFacts) {
+      const tag = f.action === 'created' ? '✓ created' : '· skipped (exists)';
+      logger.info(`  ${tag}  ${f.factPath}`);
+    }
+    if (result.factsMdUpdated) {
+      logger.success(`Updated ${result.factsMdPath} (produced: list)`);
+    }
+  });
+
 // Search command
 program
   .command('search <query>')
