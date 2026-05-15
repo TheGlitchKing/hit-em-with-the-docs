@@ -2,15 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.3.0] — Unreleased (PR1 of 3)
+## [2.3.0] — 2026-05-14
 
-Additive minor release. No breaking changes. Existing tiers (guide, standard,
-example, reference, admin, plan) validate exactly as they did in 2.2.0. A
-consumer with no knowledge-base subtree and no `symptoms:` frontmatter blocks
-observes zero behavior change.
+Additive minor release. **No breaking changes.** Existing tiers (guide,
+standard, example, reference, admin, plan) validate exactly as they did in
+2.2.0. A consumer with no knowledge-base subtree and no `symptoms:` frontmatter
+blocks observes zero behavior change.
 
-This is **PR1 of a 3-PR phase**. PR2 (generators + config) and PR3 (commands +
-slash surface) ship next; see `docs/knowledge-base-primitives.md`.
+Full reference: [`docs/knowledge-base-primitives.md`](./docs/knowledge-base-primitives.md).
+LLM-targeted onboarding: [`docs/LLM-GUIDE.md`](./docs/LLM-GUIDE.md).
+
+Test coverage: **230 passing** (was 134 at 2.2.0; +96 new tests).
 
 ### Added
 
@@ -67,13 +69,74 @@ slash surface) ship next; see `docs/knowledge-base-primitives.md`.
   not in the universal list — adding them would skew completeness calc on
   non-KB docs.
 
+### PR2: Generators + config
+
+- **`vault:` config block** in `.claude/hit-em-with-the-docs.json`:
+  `root` (default `.documentation/knowledge-base/`),
+  `playbook_paths` (default `[".documentation/**/*.md"]`),
+  `audit_window_days` (default 90). Optional with defaults — existing
+  configs without a `vault` block continue to work.
+- **Three deterministic index generators** wire into `hewtd maintain`
+  when a vault root exists:
+  - `facts/INDEX.md` — grouped by tag → confidence, sorted by id
+  - `incidents/INDEX.md` — chronological desc by date
+  - `symptoms/INDEX.md` — grouped by symptom kind (alert_name |
+    user_phrase | error_pattern)
+- **Citation graph walker** (`src/core/knowledge-base/citers.ts`) exposes
+  `buildCiterIndex()`, `findCitersInIndex()`, `citerCount()`. Used by
+  the facts-index generator and the new `find-citers` CLI command.
+- **Determinism guarantees:** byte-identical output across runs (snapshot
+  tests verify), stable sort, no timestamps in generator output, `\n`
+  line endings, padded table columns.
+
+### PR3: CLI commands + slash command surface
+
+Five new CLI subcommands. Each is paired with a Claude Code slash command.
+
+- **`hewtd find-citers <fact-id>`** — walks `cites:` and `provenance:`
+  edges; prints `{ fact_exists, citers, incidents_produced_in,
+  incidents_strengthened_by, incidents_weakened_by }`. `--json` flag.
+- **`hewtd audit-facts [--run-verify <fact-id>]`** — lists facts past
+  `last_verified + audit_window_days`. `--run-verify` executes the fact's
+  `verify_command` and updates `last_verified` on success; on failure,
+  preserves the original. CWD: `<vault>/facts/` by default; override via
+  `working_dir:` frontmatter field.
+- **`hewtd extract-facts <incident-folder> --accept <json>`** — writer
+  side of the extraction workflow. The LLM proposes fact specs via the
+  `/hit-em-with-the-docs:extract-facts` slash command; the CLI commits
+  them deterministically. Auto-populates `provenance:` to the source
+  incident folder; updates the incident's `facts.md` `produced:` list
+  (idempotent).
+- **`hewtd cite <fact-id> --file <playbook>`** — inserts a `cites:` entry
+  into the nearest `symptoms:` block, or creates a new block if none
+  exists. Idempotent — re-citing the same fact in the same entry is a
+  no-op. `--dry-run` to preview.
+- **`hewtd migrate-incident <flat-file>`** — converts a legacy flat-file
+  incident into the folder form (`narrative.md` + `facts.md` skeleton +
+  empty `evidence/`). Original renamed to `.migrated` for rollback.
+  Idempotent.
+
+### LLM onboarding
+
+- **`/hit-em-with-the-docs:help`** slash command with optional topic
+  argument (`frontmatter | knowledge-base | commands | audit | integrate
+  | templates`). Briefs the LLM directly on hewtd's surface.
+- **`docs/LLM-GUIDE.md`** — concise (~150 lines) agent-facing reference
+  with a decision tree, tier-picking heuristics, KB authoring workflows,
+  command tables, and an anti-pattern list.
+
 ### Tests
 
-- 183 tests passing (up from 134 at 2.2.0 baseline; +49 new tests).
-- New unit-test coverage for the 3 new tiers, `LIFECYCLE_TRACKED_TIERS`,
-  `validateKnowledgeBaseFields` (every error code), date-tolerance, and
-  audit strict-mode against fixture trees.
-- New fixture trees at `tests/fixtures/knowledge-base/{valid,invalid}/`.
+- **230 passing** (was 134 at 2.2.0 baseline; +96 new tests).
+- New coverage for: the 3 new tiers, `LIFECYCLE_TRACKED_TIERS`,
+  `validateKnowledgeBaseFields` (every error code), date-tolerance, audit
+  strict-mode, citation graph, three generators (snapshot + determinism),
+  audit-facts, cite, extract-facts, migrate-incident, full pipeline
+  integration test.
+- Fixture trees at `tests/fixtures/knowledge-base/{valid,invalid}/`.
+- Backward-compat regression test at
+  `tests/integration/no-vault-backcompat.test.ts` — load-bearing
+  guarantee that pre-2.3.0 projects observe zero behavior change.
 
 ## [2.1.0] — 2026-04-18
 
