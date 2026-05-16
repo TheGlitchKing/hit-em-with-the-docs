@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises';
-import { relative, basename } from 'path';
+import { relative, basename, join } from 'path';
 import { findMarkdownFiles } from '../../utils/glob.js';
+import { listDomainDocFiles } from '../../generators/regenerate.js';
 import { parseFrontmatter } from '../../utils/frontmatter.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -12,7 +13,7 @@ import {
 import { KB_ERROR_SEVERITY, type KbErrorCode } from '../metadata/errors.js';
 import { detectDomainFromPath } from '../domains/detector.js';
 import { isValidTier, TIERS } from '../domains/classifier.js';
-import { isValidDomain } from '../domains/constants.js';
+import { isValidDomain, DOMAINS } from '../domains/constants.js';
 import { checkNamingConvention, checkFilePlacement } from './rules.js';
 
 export interface AuditOptions {
@@ -172,6 +173,15 @@ export async function auditDocumentation(options: AuditOptions): Promise<AuditRe
       // Ignore read errors
     }
   }
+
+  // INDEX.md drift detection (2.5.0). Domain-level, not per-file: flags any
+  // document on disk that its domain's INDEX.md fails to list. This is the
+  // symptom of the pre-2.5.0 integrate bug (issue #7) and of INDEX files
+  // going stale between maintain runs. Drift issues are error-severity so
+  // `audit --strict` gates CI on them; they do not change `failedFiles`, so
+  // a plain `audit` exit code is unaffected (existing behavior preserved).
+  const driftIssues = await checkIndexDrift(docsPath, domain);
+  result.issues.push(...driftIssues);
 
   // Calculate stats
   result.stats.metadataCompliance = (metadataCompliant / files.length) * 100 || 0;
@@ -364,6 +374,65 @@ async function auditFile(filePath: string, docsPath: string): Promise<AuditIssue
       message: `Could not read file: ${message}`,
       fixable: false,
     });
+  }
+
+  return issues;
+}
+
+/**
+ * Detect INDEX.md drift for every domain (or a single domain when filtered).
+ *
+ * "Drift" means a document exists on disk that the domain's INDEX.md does not
+ * list — the exact symptom of the pre-2.5.0 `integrate` bug (issue #7), and
+ * of INDEX.md going stale when documents are added/removed by hand. Each
+ * drifted domain yields one error-severity, fixable issue; running
+ * `hewtd index` or `hewtd maintain` clears it.
+ */
+async function checkIndexDrift(
+  docsPath: string,
+  domainFilter?: string
+): Promise<AuditIssue[]> {
+  const issues: AuditIssue[] = [];
+  const domains = domainFilter ? [domainFilter] : [...DOMAINS];
+  const suggestion = 'Run `hewtd index` (or `hewtd maintain`) to regenerate it';
+
+  for (const domain of domains) {
+    const docFiles = await listDomainDocFiles(docsPath, domain);
+    if (docFiles.length === 0) continue;
+
+    let indexContent: string | null = null;
+    try {
+      indexContent = await readFile(join(docsPath, domain, 'INDEX.md'), 'utf-8');
+    } catch {
+      indexContent = null;
+    }
+
+    if (indexContent === null) {
+      issues.push({
+        file: `${domain}/INDEX.md`,
+        rule: 'index-drift',
+        severity: 'error',
+        message: `INDEX.md is missing but ${docFiles.length} document(s) exist in ${domain}/`,
+        fixable: true,
+        suggestion,
+      });
+      continue;
+    }
+
+    const content = indexContent;
+    const unlisted = docFiles.filter((f) => !content.includes(f));
+    if (unlisted.length > 0) {
+      issues.push({
+        file: `${domain}/INDEX.md`,
+        rule: 'index-drift',
+        severity: 'error',
+        message:
+          `INDEX.md lists ${docFiles.length - unlisted.length} of ` +
+          `${docFiles.length} document(s) in ${domain}/ — unlisted: ${unlisted.join(', ')}`,
+        fixable: true,
+        suggestion,
+      });
+    }
   }
 
   return issues;
