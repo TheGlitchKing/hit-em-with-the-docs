@@ -21,7 +21,8 @@ import { analyzeDependencies } from '../core/discover/dependencies.js';
 import { saveHealthReport } from '../reports/health-report.js';
 import { saveAuditReport } from '../reports/audit-report.js';
 import { saveLinkReport } from '../reports/link-report.js';
-import { DOMAINS, DOMAIN_DEFINITIONS } from '../core/domains/constants.js';
+import { DOMAINS, DOMAIN_DEFINITIONS, isValidDomain, type Domain } from '../core/domains/constants.js';
+import { regenerateIndexes } from '../generators/regenerate.js';
 
 const program = new Command();
 
@@ -78,6 +79,47 @@ program
     });
 
     process.exit(result.success ? 0 : 1);
+  });
+
+// Index command
+program
+  .command('index')
+  .alias('reindex')
+  .description('Regenerate all domain + root INDEX.md / REGISTRY.md from documents on disk')
+  .option('-p, --path <path>', 'Documentation path', '.documentation')
+  .option(
+    '-d, --domain <domain>',
+    'Restrict domain INDEX/REGISTRY writes to one domain (root indexes still refreshed)'
+  )
+  .action(async (options) => {
+    const docsPath = resolve(process.cwd(), options.path);
+
+    let domains: Domain[] | undefined;
+    if (options.domain) {
+      if (!isValidDomain(options.domain)) {
+        logger.error(`Unknown domain: ${options.domain}`);
+        logger.info(`Valid domains: ${DOMAINS.join(', ')}`);
+        process.exit(1);
+      }
+      domains = [options.domain];
+    }
+
+    logger.header('Index Regeneration');
+
+    const result = await regenerateIndexes({
+      docsPath,
+      ...(domains ? { domains } : {}),
+      silent: true,
+    });
+
+    for (const domain of DOMAINS) {
+      const count = result.documentCounts[domain] ?? 0;
+      logger.info(`  ${domain.padEnd(16)} ${count} document${count === 1 ? '' : 's'}`);
+    }
+    logger.newline();
+    logger.success(
+      `${result.filesWritten.length} index files written · ${result.totalDocuments} documents total`
+    );
   });
 
 // Metadata sync command

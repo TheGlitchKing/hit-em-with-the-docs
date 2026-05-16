@@ -17,6 +17,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { runMaintenance } from '../../src/core/maintain/orchestrator.js';
 import { auditDocumentation } from '../../src/core/audit/auditor.js';
+import { regenerateIndexes } from '../../src/generators/regenerate.js';
 
 describe('Backward compatibility — no-vault project (2.3.0 regression test)', () => {
   let tmpRoot: string;
@@ -48,6 +49,12 @@ Body content for the guide.
 `,
       'utf-8'
     );
+
+    // Generate the domain + root INDEX.md/REGISTRY.md so the fixture matches
+    // a real `hewtd init`-built tree (which always ships index files). Without
+    // this the tree has a document but no INDEX.md, which the 2.5.0 drift
+    // audit rule correctly flags — that's a fixture gap, not a regression.
+    await regenerateIndexes({ docsPath, silent: true });
   });
 
   afterEach(async () => {

@@ -16,6 +16,10 @@ import { buildCiterIndex } from '../knowledge-base/citers.js';
 import { generateFactsIndex } from '../../generators/facts-index.js';
 import { generateIncidentsIndex } from '../../generators/incidents-index.js';
 import { generateSymptomsIndex } from '../../generators/symptoms-index.js';
+import {
+  regenerateIndexes,
+  type RegenerateResult,
+} from '../../generators/regenerate.js';
 
 export interface MaintainOptions {
   docsPath: string;
@@ -28,6 +32,7 @@ export interface MaintainResult {
   success: boolean;
   domainHealth: DomainHealthResult;
   metadataSync?: SyncResult;
+  indexRegeneration?: RegenerateResult;
   linkCheck?: LinkCheckResult;
   audit?: AuditResult;
   healthScore: number;
@@ -115,6 +120,24 @@ export async function runMaintenance(options: MaintainOptions): Promise<Maintain
     const message = error instanceof Error ? error.message : String(error);
     result.errors.push(`Metadata sync failed: ${message}`);
     result.success = false;
+  }
+
+  // Step 1.5: Index Regeneration
+  //
+  // Domain and root INDEX.md/REGISTRY.md are derived artifacts — they are
+  // rebuilt from the documents on disk on every maintain run so they never
+  // drift from reality. This also self-heals any INDEX.md/REGISTRY.md that
+  // checkDomainHealth reported as missing. Runs in quick mode too: it is
+  // cheap and is the core "self-managing" guarantee.
+  if (!silent) {
+    logger.subheader('Step 1.5: Index Regeneration');
+  }
+
+  try {
+    result.indexRegeneration = await regenerateIndexes({ docsPath, silent });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    result.errors.push(`Index regeneration failed: ${message}`);
   }
 
   // Step 2: Link Check (skip in quick mode)
@@ -322,6 +345,7 @@ version: '1.0.0'
 |--------|-------|
 | Overall Health | ${result.healthScore.toFixed(1)}% |
 | Domain Health | ${result.domainHealth.healthy ? 'Healthy' : 'Issues Found'} |
+| Indexes Regenerated | ${result.indexRegeneration?.filesWritten.length ?? 0} files |
 | Files Scanned | ${result.metadataSync?.totalFiles ?? 0} |
 | Valid Files | ${result.metadataSync?.validFiles ?? 0} |
 | Broken Links | ${result.linkCheck?.brokenLinks.length ?? 'Not checked'} |

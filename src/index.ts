@@ -24,6 +24,7 @@ export * from './utils/markdown.js';
 export * from './generators/scaffold.js';
 export * from './generators/index-generator.js';
 export * from './generators/registry-generator.js';
+export * from './generators/regenerate.js';
 
 // Core automation
 export * from './core/metadata/sync.js';

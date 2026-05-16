@@ -8,6 +8,7 @@ import { classifyTier } from '../domains/classifier.js';
 import { generateMetadata, mergeMetadata } from '../metadata/generator.js';
 import { type PartialDocumentMetadata } from '../metadata/schema.js';
 import type { Domain } from '../domains/constants.js';
+import { regenerateIndexes } from '../../generators/regenerate.js';
 import levenshtein from 'fast-levenshtein';
 
 export interface IntegrateOptions {
@@ -164,8 +165,14 @@ export async function integrateDocument(
     const newContent = setFrontmatter(content, finalMetadata as unknown as Record<string, unknown>);
     await writeFile(targetPath, newContent, 'utf-8');
 
-    // Update domain INDEX.md
-    await updateDomainIndex(docsPath, targetDomain, targetPath, finalMetadata);
+    // Regenerate the target domain's INDEX.md / REGISTRY.md (and the root
+    // indexes) from disk. This replaces the old regex-append path, which
+    // could only update an already-populated table and silently no-op'd on
+    // a freshly scaffolded INDEX.md — so the first document into any domain
+    // was never registered. A failure here now propagates to the caller
+    // instead of being swallowed, so `integrate` cannot report a false
+    // success. See https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/7
+    await regenerateIndexes({ docsPath, domains: [targetDomain], silent });
 
     result.success = true;
     result.integrated = true;
@@ -249,50 +256,6 @@ function calculateContentSimilarity(content1: string, content2: string): number 
 
   const union = words1.size + words2.size - intersection;
   return union > 0 ? intersection / union : 0;
-}
-
-/**
- * Update domain INDEX.md with new document
- */
-async function updateDomainIndex(
-  docsPath: string,
-  domain: string,
-  filePath: string,
-  metadata: PartialDocumentMetadata
-): Promise<void> {
-  const indexPath = join(docsPath, domain, 'INDEX.md');
-
-  if (!(await pathExists(indexPath))) {
-    return;
-  }
-
-  try {
-    const indexContent = await readFile(indexPath, 'utf-8');
-
-    // Check if document is already listed
-    const relPath = relative(join(docsPath, domain), filePath);
-    if (indexContent.includes(relPath)) {
-      return;
-    }
-
-    // Find the documents table and add entry
-    const tableRegex = /(\| Document \| Tier \| Status \| Updated \|\n\|[-|\s]+\n)([\s\S]*?)(\n\n|$)/;
-    const match = indexContent.match(tableRegex);
-
-    if (match) {
-      const [fullMatch, header, existingRows, ending] = match;
-      const newRow = `| [${metadata.title}](${relPath}) | ${metadata.tier} | ${metadata.status} | ${metadata.last_updated} |\n`;
-
-      const newContent = indexContent.replace(
-        fullMatch,
-        `${header}${existingRows}${newRow}${ending}`
-      );
-
-      await writeFile(indexPath, newContent, 'utf-8');
-    }
-  } catch {
-    // Silently fail if we can't update the index
-  }
 }
 
 /**

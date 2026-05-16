@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.0] — 2026-05-16
+
+INDEX.md / REGISTRY.md regeneration fix. `integrate` and `maintain` now
+rebuild the documentation indexes from the documents on disk via the real
+generators, instead of a regex-append path that silently failed to register
+the first document into any domain. Closes #7. No breaking changes — the
+`src/index.ts` exports are additive.
+
+### Fixed
+
+- **`integrate` now registers the first document into a domain.**
+  `updateDomainIndex()` could only append a row to an INDEX.md that already
+  contained a markdown table. A freshly scaffolded domain INDEX.md has no
+  table, so the regex never matched and nothing was written — and the failure
+  was swallowed by a bare `catch`, so `integrate` still reported success. The
+  first document into every domain was therefore never indexed, and projects
+  without CI never got populated INDEX.md/REGISTRY.md files at all. `integrate`
+  now regenerates the target domain's INDEX.md/REGISTRY.md (and the root
+  indexes) from disk via the real generators, and a regeneration failure
+  propagates to the caller instead of being silently swallowed. (#7)
+
+### Added
+
+- **`hewtd index` (alias `reindex`)** — regenerates every domain + root
+  INDEX.md/REGISTRY.md from the documents on disk. `--domain <name>` restricts
+  domain-file writes to one domain (root indexes are still refreshed). This is
+  the recovery command `index-generator.ts` already pointed users to — it now
+  exists.
+- **`maintain` self-heals indexes.** A new "Step 1.5: Index Regeneration" step
+  rebuilds all domain + root INDEX.md/REGISTRY.md on every `maintain` run, so
+  the indexes never drift from the documents present. It also recreates any
+  INDEX.md/REGISTRY.md that the domain-health check reported as missing. Runs
+  in quick mode too.
+- **`audit` INDEX.md drift detection.** A new `index-drift` rule flags any
+  document on disk that its domain's INDEX.md fails to list (and a missing
+  INDEX.md when documents are present). It is error-severity, so `audit
+  --strict` gates CI on it; `failedFiles` is unchanged, so a plain `audit`
+  exit code keeps its pre-2.5.0 behavior.
+- **`regenerateIndexes()` / `listDomainDocFiles()`** exported from
+  `src/index.ts` — the shared, single-source-of-truth index builder used by
+  `integrate`, `maintain`, the `index` command, and the drift audit.
+
 ## [2.4.0] — 2026-05-15
 
 Bug fix + recovery command for the 2.3.0 `migrate-incident` target-path
