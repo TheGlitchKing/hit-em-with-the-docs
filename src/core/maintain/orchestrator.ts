@@ -5,7 +5,7 @@ import { pathExists } from '../../utils/glob.js';
 import { syncMetadata, type SyncResult } from '../metadata/sync.js';
 import { checkLinks, type LinkCheckResult } from '../links/checker.js';
 import { auditDocumentation, type AuditResult } from '../audit/auditor.js';
-import { DOMAINS } from '../domains/constants.js';
+import { getAllDomains } from '../domains/registry.js';
 import { formatDate } from '../metadata/generator.js';
 import {
   loadPluginConfig,
@@ -247,7 +247,7 @@ async function checkDomainHealth(docsPath: string): Promise<DomainHealthResult> 
     missingRegistries: [],
   };
 
-  for (const domain of DOMAINS) {
+  for (const domain of getAllDomains()) {
     const domainPath = join(docsPath, domain);
     const indexPath = join(domainPath, 'INDEX.md');
     const registryPath = join(domainPath, 'REGISTRY.md');

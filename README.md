@@ -249,6 +249,7 @@ These commands run in your terminal and manage your documentation.
 | `hewtd maintain` | Run full health check and fix problems |
 | `hewtd integrate <file>` | Add a document to the system |
 | `hewtd list` | Show all 15 documentation categories |
+| `hewtd domain list\|add\|remove` | Manage custom domains beyond the built-in 15 |
 | `hewtd search <query>` | Search for content in your docs |
 | `hewtd metadata-sync` | Update document information tags |
 | `hewtd link-check` | Find broken links between documents |
@@ -943,6 +944,66 @@ The system organizes documentation into 15 specialized domains with different pr
 - **development**: Development practices (testing, standards, architecture)
 - **features**: Feature-specific documentation (features, procedures, workflows, quickstart)
 - **advanced**: Specialized content (troubleshooting, agents, backups, plans)
+
+#### Custom Domains (2.6.0+)
+
+The 15 domains above are **built-in** — they're part of the compiled contract and are always present. Beyond those, you can register your own **custom domains** at runtime (no recompile) via the `hewtd domain` command. Custom domains are stored in your project's `.claude/hit-em-with-the-docs.json` under a `domains: []` array:
+
+```json
+{
+  "domains": [
+    {
+      "id": "ml-pipeline",
+      "name": "ML Pipeline",
+      "description": "Model training and inference pipeline docs",
+      "keywords": ["ml", "model", "training", "inference", "pipeline"],
+      "loadPriority": 6,
+      "category": "features"
+    }
+  ]
+}
+```
+
+Entry fields: `id` (kebab-case; can't collide with a built-in), `name`, `description`, `keywords` (at least one — they drive auto-classification in `hewtd integrate`), `loadPriority` (1-10), and `category` (one of `core`, `development`, `features`, `advanced`). You normally don't hand-edit this file — use the commands below.
+
+**`hewtd domain list`** — list built-in + custom domains, marked by kind:
+
+```bash
+hewtd domain list
+hewtd domain list --json
+```
+
+**`hewtd domain add <id>`** — validate, write the config entry, scaffold `.documentation/<id>/` (with INDEX.md/REGISTRY.md), and refresh the root indexes. Keywords are required.
+
+```bash
+# Preview first (writes nothing) — shows the proposed config entry + folder
+hewtd domain add ml-pipeline -k "ml,model,training,inference,pipeline" --dry-run
+
+# Apply it
+hewtd domain add ml-pipeline \
+  -n "ML Pipeline" \
+  -d "Model training and inference pipeline docs" \
+  -k "ml,model,training,inference,pipeline" \
+  -c features \
+  --load-priority 6
+
+# Then refresh indexes everywhere
+hewtd maintain
+```
+
+Guardrails: a built-in id is rejected, duplicate custom ids are rejected, non-kebab-case ids are rejected, empty keywords are rejected, and a bad `category` is rejected.
+
+**`hewtd domain remove <id>`** (alias `rm`) — remove a custom domain from config. This is **non-destructive**: it never deletes the folder or the docs inside it. Any docs in `.documentation/<id>/` simply become *orphaned* (left on disk, no longer a recognized domain), and the command reports how many. Built-in domains cannot be removed.
+
+```bash
+# Preview — reports how many docs would be orphaned
+hewtd domain remove ml-pipeline --dry-run
+
+# Apply
+hewtd domain remove ml-pipeline
+```
+
+In Claude Code, the `/hit-em-with-the-docs:domain` slash command wraps these and adds a confirm step before `add` (dry-run preview) and `remove` (orphaned-doc count) apply.
 
 ### Metadata Schema
 

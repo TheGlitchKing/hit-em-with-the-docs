@@ -7,6 +7,7 @@
 
 // Core domain system
 export * from './core/domains/constants.js';
+export * from './core/domains/registry.js';
 export * from './core/domains/detector.js';
 export * from './core/domains/classifier.js';
 

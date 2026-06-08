@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0] — 2026-06-08
+
+Runtime custom domains. The 15 built-in domains are no longer the whole
+story — projects can now register their own documentation domains at
+runtime, without recompiling, via a new `hewtd domain` command and a
+`domains: []` block in `.claude/hit-em-with-the-docs.json`. Minor,
+additive release: the built-in domains are unchanged and remain part of
+the compiled contract, and the `src/index.ts` exports are additive.
+
+### Added
+
+- **Custom domains via `hewtd domain add | remove | list`.** Beyond the
+  15 built-ins, a project can declare its own domains. Each entry lives in
+  `.claude/hit-em-with-the-docs.json` under a new `domains: []` array with
+  fields `id` (kebab-case), `name`, `description`, `keywords` (≥1),
+  `loadPriority` (1-10), and `category` (`core | development | features |
+  advanced`). Once registered, a custom domain is valid in any doc's
+  `domains:` frontmatter and its `keywords` feed `integrate`'s
+  auto-classification, exactly like a built-in.
+  - `hewtd domain list [--json]` — lists built-in + custom domains,
+    partitioned and marked by kind.
+  - `hewtd domain add <id> -k <comma,keywords> [-n name] [-d desc] [-c
+    category] [--load-priority N] [--dry-run]` — validates strictly,
+    writes the config entry, scaffolds `.documentation/<id>/` with
+    INDEX.md/REGISTRY.md, and refreshes the root indexes. Keywords are
+    REQUIRED (they're what makes the new domain discoverable to
+    `integrate`). `--dry-run` prints the proposed entry + folder without
+    writing. Guardrails: a built-in id, a duplicate custom id, a
+    non-kebab-case id, empty keywords, or a bad category are all rejected
+    with a hard error.
+  - `hewtd domain remove <id>` (alias `rm`) `[--dry-run]` — removes the
+    custom entry from config. **Non-destructive**: it never deletes the
+    folder or the docs inside it. Any docs in `.documentation/<id>/` are
+    reported as *orphaned* (left on disk, no longer a recognized domain).
+    Refuses to remove a built-in domain — those are part of the compiled
+    contract and always present.
+- **`/hit-em-with-the-docs:domain` slash command.** A thin wrapper over
+  the CLI that adds the confirm dance these mutating operations need: `add`
+  previews via `--dry-run` and asks before applying (and prompts for the
+  required keywords if missing); `remove` reports the orphaned-doc count
+  and only applies on explicit confirmation.
+
+### Fixed
+
+- **`loadPluginConfigSync` no longer silently falls back to defaults in
+  the published package.** The sync config reader used a lazy
+  `require('fs')` inside the function, which throws `require is not
+  defined` in the ESM runtime the package ships as. The throw was caught
+  by the fail-open `try/catch`, so every synchronous config read returned
+  defaults — `vault.*` overrides and any `domains: []` entries read on the
+  sync path were silently ignored regardless of what was in
+  `.claude/hit-em-with-the-docs.json`. It now uses a static
+  `import { readFileSync } from 'fs'`, so the sync reader actually reads
+  the file. (The async `loadPluginConfig` was unaffected — it already used
+  a static `fs/promises` import.)
+
 ## [2.5.0] — 2026-05-16
 
 INDEX.md / REGISTRY.md regeneration fix. `integrate` and `maintain` now

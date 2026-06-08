@@ -1,6 +1,7 @@
 import { readdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { DOMAINS, type Domain } from '../core/domains/constants.js';
+import { type Domain } from '../core/domains/constants.js';
+import { getAllDomains } from '../core/domains/registry.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
 import { formatDate } from '../core/metadata/generator.js';
 import { pathExists } from '../utils/glob.js';
@@ -136,7 +137,8 @@ export async function regenerateIndexes(
   options: RegenerateOptions
 ): Promise<RegenerateResult> {
   const { docsPath, silent = false } = options;
-  const targetDomains = options.domains ?? [...DOMAINS];
+  const allDomains = getAllDomains();
+  const targetDomains = options.domains ?? allDomains;
 
   const result: RegenerateResult = {
     documentCounts: {},
@@ -148,7 +150,7 @@ export async function regenerateIndexes(
   // when only a subset of domain files is being rewritten.
   const rootEntriesByDomain: Record<string, IndexEntry[]> = {};
 
-  for (const domain of DOMAINS) {
+  for (const domain of allDomains) {
     const domainEntries = await buildDomainEntries(docsPath, domain, '');
     result.documentCounts[domain] = domainEntries.length;
     result.totalDocuments += domainEntries.length;
@@ -194,7 +196,7 @@ export async function regenerateIndexes(
   if (!silent) {
     logger.success(
       `Regenerated ${result.filesWritten.length} index file(s) — ` +
-        `${result.totalDocuments} document(s) across ${DOMAINS.length} domains`
+        `${result.totalDocuments} document(s) across ${allDomains.length} domains`
     );
   }
 

@@ -1,6 +1,6 @@
 import { basename, relative } from 'path';
 import { detectDomainFromPath } from '../domains/detector.js';
-import { isValidDomain } from '../domains/constants.js';
+import { isValidDomain } from '../domains/registry.js';
 
 export interface AuditRule {
   id: string;

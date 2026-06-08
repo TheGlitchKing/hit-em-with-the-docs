@@ -21,7 +21,12 @@ import { analyzeDependencies } from '../core/discover/dependencies.js';
 import { saveHealthReport } from '../reports/health-report.js';
 import { saveAuditReport } from '../reports/audit-report.js';
 import { saveLinkReport } from '../reports/link-report.js';
-import { DOMAINS, DOMAIN_DEFINITIONS, isValidDomain, type Domain } from '../core/domains/constants.js';
+import { type Domain } from '../core/domains/constants.js';
+import {
+  getAllDomains,
+  getDomainDefinition,
+  isValidDomain,
+} from '../core/domains/registry.js';
 import { regenerateIndexes } from '../generators/regenerate.js';
 
 const program = new Command();
@@ -98,7 +103,7 @@ program
     if (options.domain) {
       if (!isValidDomain(options.domain)) {
         logger.error(`Unknown domain: ${options.domain}`);
-        logger.info(`Valid domains: ${DOMAINS.join(', ')}`);
+        logger.info(`Valid domains: ${getAllDomains().join(', ')}`);
         process.exit(1);
       }
       domains = [options.domain];
@@ -112,7 +117,7 @@ program
       silent: true,
     });
 
-    for (const domain of DOMAINS) {
+    for (const domain of getAllDomains()) {
       const count = result.documentCounts[domain] ?? 0;
       logger.info(`  ${domain.padEnd(16)} ${count} document${count === 1 ? '' : 's'}`);
     }
@@ -345,12 +350,157 @@ program
     logger.header('Documentation Domains');
 
     const headers = ['Domain', 'Category', 'Priority', 'Description'];
-    const rows = DOMAINS.map((d) => {
-      const def = DOMAIN_DEFINITIONS[d];
+    const rows = getAllDomains().map((d) => {
+      const def = getDomainDefinition(d);
       return [d, def.category, `${def.loadPriority}/10`, def.description];
     });
 
     logger.table(headers, rows);
+  });
+
+// --- Custom domains: add / remove / list ---
+
+const domain = program
+  .command('domain')
+  .description('Manage custom documentation domains (add | remove | list)');
+
+domain
+  .command('list')
+  .description('List built-in and custom domains')
+  .option('--json', 'Output as JSON', false)
+  .action(async (options) => {
+    const { listDomains } = await import('../core/domains/manage.js');
+    const result = listDomains(process.cwd());
+
+    if (options.json) {
+      logger.info(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    logger.header('Documentation Domains');
+    const headers = ['Domain', 'Kind', 'Category', 'Priority', 'Description'];
+    const rows = [
+      ...result.builtin.map((d) => [
+        d.id,
+        'built-in',
+        d.category,
+        `${d.loadPriority}/10`,
+        d.description,
+      ]),
+      ...result.custom.map((d) => [
+        d.id,
+        'custom',
+        d.category,
+        `${d.loadPriority}/10`,
+        d.description,
+      ]),
+    ];
+    logger.table(headers, rows);
+    logger.newline();
+    logger.info(
+      `${result.builtin.length} built-in · ${result.custom.length} custom`
+    );
+  });
+
+domain
+  .command('add <id>')
+  .description('Add a custom domain (writes config + scaffolds the folder)')
+  .option('-p, --path <path>', 'Documentation path', '.documentation')
+  .option('-n, --name <name>', 'Human-readable name (defaults to a title-cased id)')
+  .option('-d, --description <desc>', 'One-line description')
+  .option(
+    '-k, --keywords <csv>',
+    'Comma-separated keywords used for auto-classification (required)'
+  )
+  .option(
+    '-c, --category <category>',
+    'core | development | features | advanced',
+    'features'
+  )
+  .option('--load-priority <n>', 'Load priority 1-10', '5')
+  .option('--dry-run', 'Preview without writing', false)
+  .action(async (id, options) => {
+    const { addDomain } = await import('../core/domains/manage.js');
+    const docsPath = resolve(process.cwd(), options.path);
+
+    const titleCase = (s: string) =>
+      s.replace(/[-_]/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase());
+
+    const spec = {
+      id,
+      name: options.name ?? titleCase(id),
+      description: options.description ?? `${titleCase(id)} documentation`,
+      keywords: options.keywords
+        ? String(options.keywords)
+            .split(',')
+            .map((k: string) => k.trim())
+            .filter(Boolean)
+        : [],
+      loadPriority: parseInt(options.loadPriority, 10),
+      category: options.category,
+    };
+
+    const result = await addDomain({
+      projectRoot: process.cwd(),
+      docsPath,
+      spec,
+      dryRun: options.dryRun,
+    });
+
+    logger.header(`hewtd domain add: ${id}`);
+    if (!result.ok) {
+      for (const e of result.errors) logger.error(e);
+      process.exit(1);
+    }
+    logger.info(`Config:  ${result.configPath}`);
+    logger.info(`Folder:  ${result.domainFolder}`);
+    if (result.action === 'dry_run') {
+      logger.info('');
+      logger.info('--- proposed config entry ---');
+      logger.info(JSON.stringify(result.spec, null, 2));
+      logger.info('');
+      logger.info('Dry-run — nothing written. Re-run without --dry-run to apply.');
+      return;
+    }
+    logger.success(`Added custom domain "${id}".`);
+    logger.info(`Wrote ${result.filesWritten?.length ?? 0} file(s).`);
+    logger.info('Run `hewtd maintain` any time to refresh indexes.');
+  });
+
+domain
+  .command('remove <id>')
+  .alias('rm')
+  .description('Remove a custom domain from config (never deletes docs)')
+  .option('-p, --path <path>', 'Documentation path', '.documentation')
+  .option('--dry-run', 'Preview without writing', false)
+  .action(async (id, options) => {
+    const { removeDomain } = await import('../core/domains/manage.js');
+    const docsPath = resolve(process.cwd(), options.path);
+
+    const result = await removeDomain({
+      projectRoot: process.cwd(),
+      docsPath,
+      id,
+      dryRun: options.dryRun,
+    });
+
+    logger.header(`hewtd domain remove: ${id}`);
+    if (!result.ok) {
+      for (const e of result.errors) logger.error(e);
+      process.exit(1);
+    }
+    if (result.orphanedDocs > 0) {
+      logger.warn(
+        `${result.orphanedDocs} document(s) in ${result.domainFolder} will be ORPHANED (left on disk, no longer a recognized domain).`
+      );
+    }
+    if (result.action === 'dry_run') {
+      logger.info('');
+      logger.info('Dry-run — nothing written. Re-run without --dry-run to apply.');
+      return;
+    }
+    logger.success(`Removed custom domain "${id}" from config.`);
+    logger.info(`Folder left intact: ${result.domainFolder}`);
   });
 
 // --- 2.3.0: knowledge-base commands ---
