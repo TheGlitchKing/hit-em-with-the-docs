@@ -20,6 +20,13 @@ import { isBuiltinDomain, type DomainDefinition } from './constants.js';
 import { buildRegistry, resetRegistry } from './registry.js';
 import { createScaffold } from '../../generators/scaffold.js';
 import { regenerateIndexes, listDomainDocFiles } from '../../generators/regenerate.js';
+import { ARCHIVE_DIR } from '../../utils/glob.js';
+
+/**
+ * Reserved structural folder names that must never be registered as domains.
+ * These are scan-special directories, not part of the active doc corpus.
+ */
+const RESERVED_DIR_NAMES = ['drafts', 'reports', ARCHIVE_DIR];
 
 export interface DomainListResult {
   builtin: DomainDefinition[];
@@ -97,6 +104,13 @@ export async function addDomain(input: AddDomainInput): Promise<AddDomainResult>
 
   if (isBuiltinDomain(valid.id)) {
     errors.push(`"${valid.id}" is a built-in domain; pick a different id.`);
+    return { ok: false, errors, action: 'rejected', configPath };
+  }
+
+  if (RESERVED_DIR_NAMES.includes(valid.id)) {
+    errors.push(
+      `"${valid.id}" is a reserved documentation folder (not a domain); pick a different id.`
+    );
     return { ok: false, errors, action: 'rejected', configPath };
   }
 

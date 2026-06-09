@@ -1,6 +1,7 @@
 import { basename, relative } from 'path';
 import { detectDomainFromPath } from '../domains/detector.js';
 import { isValidDomain } from '../domains/registry.js';
+import { ARCHIVE_DIR } from '../../utils/glob.js';
 
 export interface AuditRule {
   id: string;
@@ -115,7 +116,7 @@ export function checkFilePlacement(
 
     // Check if it's in an unknown folder
     const folder = pathParts[0];
-    if (folder && !isValidDomain(folder) && !['drafts', 'reports'].includes(folder)) {
+    if (folder && !isValidDomain(folder) && !['drafts', 'reports', ARCHIVE_DIR].includes(folder)) {
       return {
         valid: false,
         message: `File is in unknown folder '${folder}'`,

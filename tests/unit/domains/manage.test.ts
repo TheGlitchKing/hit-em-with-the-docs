@@ -97,6 +97,16 @@ describe('manage: addDomain / removeDomain / listDomains', () => {
     expect(res.errors.join(' ')).toMatch(/already exists/i);
   });
 
+  it('rejects a reserved structural folder name (archive)', async () => {
+    const res = await addDomain({
+      projectRoot: tmpDir,
+      docsPath,
+      spec: { ...SPEC, id: 'archive' },
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.join(' ')).toMatch(/reserved/i);
+  });
+
   it('rejects an invalid spec (empty keywords, bad category)', async () => {
     const r1 = await addDomain({
       projectRoot: tmpDir,
