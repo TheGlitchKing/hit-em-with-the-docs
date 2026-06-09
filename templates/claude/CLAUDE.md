@@ -29,7 +29,7 @@ This project uses the hit-em-with-the-docs documentation system for hierarchical
 
 These 15 domains are built-in and always present. The set is **extensible** — register project-specific domains at runtime with `npx hit-em-with-the-docs domain add <id> -k <keywords>` (stored in `.claude/hit-em-with-the-docs.json` under `domains: []`, and scaffolded under `.documentation/<id>/`). Run `npx hit-em-with-the-docs domain list` to see the active set, and `domain remove <id>` to drop a custom one (never deletes docs).
 
-**Deprecated docs → `.documentation/archive/`.** To retire a doc without deleting it, move it under `archive/`. hewtd excludes that folder from every scan (audit, link-check, metadata-sync, integrate, link graph, search), so archived docs are never validated or indexed. `archive` is reserved and cannot be a domain.
+**Deprecated docs → `.documentation/archive/`.** To retire a doc without deleting it, use `npx hit-em-with-the-docs archive <file>` — it moves the doc under `archive/`, stamps lifecycle frontmatter (`archived_from` makes it reversible), and reindexes. A link guard refuses if active docs still link to it (`--force` overrides); `--dry-run` previews. `unarchive <file>` restores it where it came from, and `archive-candidates` lists docs that may warrant archiving (advisory, read-only — never moves anything). hewtd excludes the `archive/` folder from every scan (audit, link-check, metadata-sync, integrate, link graph, search), so archived docs are never validated or indexed. `archive` is reserved and cannot be a domain. A doc left at `status: deprecated` in an active folder is now surfaced by `audit` as an INFO nudge toward `archive`.
 
 ## Commands
 

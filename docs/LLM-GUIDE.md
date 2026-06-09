@@ -64,9 +64,19 @@ Projects can add **custom domains** beyond these via `hewtd domain add <id> -k <
 
 Files belong in `<docs-path>/<domain>/<filename>.md`. The auditor warns when files appear to be in the wrong domain.
 
-### Deprecating a doc: the `archive/` folder
+### Deprecation workflow (2.7.0+)
 
-To retire a doc without deleting it, move it to `<docs-path>/archive/`. hewtd **excludes the entire `archive/` subtree from every scan** (audit, link-check, metadata-sync, integrate dup-detection, link graph, search). Archived docs are not validated, never indexed, and won't break audit/link-check with stale frontmatter — so you can park outdated content there freely. `archive` is a reserved name (not a domain; `hewtd domain add archive` is rejected). To un-deprecate, move the file back into a domain folder and run `hewtd maintain`.
+`archive/` is the parking lot for retired docs: hewtd **excludes the entire `archive/` subtree from every scan** (audit, link-check, metadata-sync, integrate dup-detection, link graph, search). Archived docs are not validated, never indexed, and won't break audit/link-check with stale frontmatter. `archive` is a reserved name (not a domain; `hewtd domain add archive` is rejected). As of **2.7.0** there's a real workflow around it instead of just the folder convention.
+
+**`status: deprecated` vs `hewtd archive` — they're different steps.** Setting `status: deprecated` is a *signal* ("this is on its way out") — the doc stays in its domain folder, stays indexed, stays linkable. `hewtd archive` is the *retirement*: it physically moves the doc out of the active corpus. The audit now bridges the two — a doc left at `status: deprecated` in an active folder raises an INFO issue (`deprecated-not-archived`) that nudges toward `hewtd archive`. So: mark `deprecated` when you want to flag intent but keep the doc live; run `archive` when you're actually retiring it.
+
+**`hewtd archive <file>`** moves a doc into `archive/<same-domain-subpath>/` (so `api/old.md` → `archive/api/old.md`), stamps lifecycle frontmatter (`status: archived`, `archived_on`, `archived_from`, and `archived_reason` if you pass `-r/--reason`), and regenerates indexes so the doc drops out of its domain INDEX. It prefers `git mv` (history-preserving) and falls back to a plain move outside a git repo. **Link guard:** by default it *refuses* if active docs still link to the target, and reports each linking doc — fix those links first, or pass `--force` to archive anyway (the inbound links become dangling). Use `--dry-run` to preview the move without touching anything.
+
+**`hewtd unarchive <file>`** is the lossless reverse: it restores the doc to the path recorded in `archived_from`, sets `status: active`, and strips the `archived_*` fields. It refuses if the restore target already exists (no clobber).
+
+**`hewtd archive-candidates`** is advisory and read-only — it lists docs that *may* warrant archiving with a score + reasons, and never moves anything. Signals, ranked: `status: deprecated` and `superseded_by:` are strong and each qualify a doc on their own; orphaned (zero inbound links) and stale (git-last-touched, or `last_updated` as fallback, older than `candidate_after_days`) are weaker — **age never qualifies a doc alone**, it only counts when the doc is *also* orphaned. The design rejects access-recency (hewtd has no read telemetry) and age-alone signals on purpose: docs aren't code, and an unchanged foundational doc is often the most important one, not the most disposable. Detection proposes; humans (or you, with the user's say-so) execute; nothing is ever auto-archived.
+
+New lifecycle frontmatter fields the schema now recognizes: `superseded_by` (set by hand to point at the doc that replaces this one), and the archive-stamped `archived_on`, `archived_from`, `archived_reason`. To restore an archived doc, prefer `hewtd unarchive` over a manual move — it puts the doc back exactly where it came from and cleans up the stamp.
 
 ## Knowledge-base authoring (2.3.0+)
 
@@ -124,6 +134,9 @@ Use Bash to run these. They're all available via `npx --no @theglitchking/hit-em
 | `hewtd domain list` | List built-in + custom domains (mark each by kind). |
 | `hewtd domain add <id> -k <keywords>` | Add a custom domain (keywords REQUIRED). Validates, writes config, scaffolds the folder. Use `--dry-run` to preview first. |
 | `hewtd domain remove <id>` | Remove a custom domain from config. Never deletes docs — reports how many become orphaned. Can't remove a built-in. |
+| `hewtd archive <file>` | Retire a doc: move it into `archive/`, stamp lifecycle frontmatter, reindex. Reversible. Link guard refuses if active docs still link to it — `--force` overrides; `--dry-run` previews; `-r/--reason` records why. |
+| `hewtd unarchive <file>` | Restore an archived doc to its recorded `archived_from` path; clears the archive stamp. Refuses if the target already exists. |
+| `hewtd archive-candidates` | Advisory, read-only. List docs that may warrant archiving (score + reasons). Never moves anything. `--json` for machine output. |
 
 ## Slash commands (Claude Code)
 

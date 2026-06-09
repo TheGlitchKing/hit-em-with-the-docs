@@ -2,6 +2,74 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.0] — 2026-06-08
+
+The archival process. 2.6.0 shipped `archive/` as a passive folder
+convention — you moved files into it by hand and hewtd politely ignored
+the subtree. 2.7.0 turns that folder into an actual workflow: a command
+to retire a doc (and one to bring it back), an advisory detector that
+surfaces archive candidates, a config block to tune it, and an audit
+nudge that finally makes `status: deprecated` mean something. Minor,
+additive release: no existing behavior changes, the `archive/` exclusion
+is unchanged, and the new frontmatter fields are optional.
+
+Two principles shape the whole feature. **Propose, don't impose** —
+detection is advisory, a human always executes the move, and nothing is
+ever auto-archived (`auto: false` by default). **Reversible and
+link-safe** — archiving records where a doc came from so restore is
+lossless, and a link guard prevents silently breaking the active corpus.
+And a deliberate non-feature: hewtd does **not** archive on
+access-recency (it has no read telemetry) or on age alone. Docs aren't
+code — an unchanged foundational doc is usually the most important one,
+not the most disposable — so the only recency signal is git-last-touched,
+and even that is advisory and gated behind "also orphaned."
+
+### Added
+
+- **`hewtd archive <file>` — retire a doc, non-destructively and
+  reversibly.** Moves the doc into `archive/<same-domain-subpath>/` (so
+  `api/old.md` → `archive/api/old.md`), stamps lifecycle frontmatter
+  (`status: archived`, `archived_on`, `archived_from`, and
+  `archived_reason` when `-r/--reason` is given), and regenerates the
+  indexes so the doc cleanly drops out of its domain INDEX. Prefers
+  `git mv` to preserve history; falls back to a plain move outside a git
+  repo. **Link guard:** refuses by default if active docs still link to
+  the target — it reports each offending link so you can fix them first —
+  and `--force` overrides (the inbound links then become dangling).
+  `--dry-run` previews without moving anything.
+- **`hewtd unarchive <file>` — the lossless reverse.** Restores the doc to
+  the path recorded in `archived_from`, sets `status: active`, and strips
+  the `archived_*` fields. Refuses if the restore target already exists, so
+  it never clobbers a doc you've since recreated. `--dry-run` previews.
+- **`hewtd archive-candidates` — advisory, read-only detection.** Lists
+  docs that may warrant archiving, each with a score and the reasons
+  behind it; it never moves anything. Signals, ranked: `status:
+  deprecated` and `superseded_by:` are strong explicit signals and each
+  qualify a doc on their own; orphaned (zero inbound links) and stale
+  (git-last-touched, or `last_updated` as a fallback when git is
+  unavailable, older than the threshold) are weaker — and **age only
+  counts when the doc is also orphaned**, never on its own. `--json` for
+  machine-readable output.
+- **`archive` config block** in `.claude/hit-em-with-the-docs.json`, with
+  four optional keys and conservative defaults: `honor_status_deprecated`
+  (default `true` — treat `status: deprecated` as a candidate signal),
+  `candidate_after_days` (default `365` — the staleness threshold),
+  `require_orphaned` (default `true` — gate the age signal behind "also
+  orphaned"), and `auto` (default `false` — nothing is ever
+  auto-archived).
+- **New lifecycle frontmatter fields** recognized by the schema:
+  `superseded_by` (set by hand to point at the replacing doc), and the
+  archive-stamped `archived_on`, `archived_from`, and `archived_reason`.
+  These validate on active docs (`superseded_by`, `status: deprecated`)
+  and on archived docs alike.
+- **`deprecated-not-archived` audit nudge.** A doc left at `status:
+  deprecated` while still sitting in an active domain folder now raises an
+  INFO audit issue suggesting `hewtd archive <file>`. `status: deprecated`
+  and archiving are different steps — `deprecated` flags intent while
+  keeping a doc live and indexed; `archive` physically retires it — and
+  this nudge is what finally makes `status: deprecated` actionable instead
+  of a dead-end label.
+
 ## [2.6.0] — 2026-06-08
 
 Runtime custom domains. The 15 built-in domains are no longer the whole
