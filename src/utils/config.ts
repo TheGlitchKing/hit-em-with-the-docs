@@ -77,14 +77,37 @@ const vaultConfigSchema = z
   })
   .default({});
 
+export const DEFAULT_ARCHIVE_CANDIDATE_DAYS = 365;
+
+/**
+ * Archival policy. Governs candidate DETECTION and archival aggressiveness.
+ * The safe default is propose-don't-impose: nothing is ever auto-archived
+ * (`auto: false`), age alone never qualifies a doc (`require_orphaned: true`),
+ * and the recency threshold is generous (docs churn slower than code).
+ */
+const archiveConfigSchema = z
+  .object({
+    honor_status_deprecated: z.boolean().default(true),
+    candidate_after_days: z
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_ARCHIVE_CANDIDATE_DAYS),
+    require_orphaned: z.boolean().default(true),
+    auto: z.boolean().default(false),
+  })
+  .default({});
+
 const pluginConfigSchema = z
   .object({
     vault: vaultConfigSchema,
     domains: lenientDomainsArray,
+    archive: archiveConfigSchema,
   })
   .passthrough();
 
 export type VaultConfig = z.infer<typeof vaultConfigSchema>;
+export type ArchiveConfig = z.infer<typeof archiveConfigSchema>;
 export type PluginConfig = z.infer<typeof pluginConfigSchema>;
 
 const CONFIG_FILENAME = '.claude/hit-em-with-the-docs.json';

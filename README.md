@@ -256,6 +256,9 @@ These commands run in your terminal and manage your documentation.
 | `hewtd audit` | Check documentation quality and compliance |
 | `hewtd report <type>` | Generate health, audit, or link reports |
 | `hewtd discover` | Scan code for patterns and create docs |
+| `hewtd archive <file>` | Retire a doc into `archive/` (reversible, link-safe) |
+| `hewtd unarchive <file>` | Restore an archived doc to where it came from |
+| `hewtd archive-candidates` | List docs that may warrant archiving (advisory) |
 
 ##### Command Examples and Details
 
@@ -919,14 +922,117 @@ When you run `hewtd init`, it creates this structure:
 
 #### Archived / deprecated docs (`archive/`)
 
-Move a doc to `.documentation/archive/` to retire it without deleting it. hewtd
+`.documentation/archive/` is the parking lot for retired documentation. hewtd
 **excludes the entire `archive/` subtree from every scan** — `audit`,
 `link-check`, `metadata-sync`, `integrate` duplicate-detection, the link graph,
 and `search`. Archived docs are never validated against the frontmatter schema,
 never appear in any INDEX.md/REGISTRY.md, and won't break audit/link-check with
 stale frontmatter. `init` scaffolds the folder with a README explaining the
 convention. `archive` is a reserved name and cannot be registered as a domain.
-To un-deprecate a doc, move it back into a domain folder and run `hewtd maintain`.
+
+##### The archival process (2.7.0+)
+
+The `archive/` folder shipped in 2.6.0 as a passive convention — you moved files
+into it by hand. **2.7.0** turns it into an actual workflow: three commands, a
+config block, and an audit nudge, all built around two principles. First,
+**propose, don't impose** — detection is advisory, a human always executes the
+move, and nothing is ever auto-archived. Second, **reversible and link-safe** —
+archiving records where a doc came from so restore is lossless, and a link guard
+keeps you from silently breaking the active corpus.
+
+There's a deliberate stance baked into how candidates are detected, too. hewtd
+**does not** use access-recency (it has no read telemetry) and **does not** treat
+age alone as an archive signal. Docs aren't code: an unchanged foundational doc is
+often the most important one in the tree, not the most disposable. The only
+objective recency signal available is git-last-touched, and even that is advisory
+and gated behind "this doc is also orphaned."
+
+**`hewtd archive <file>`** retires a doc. It moves the file into
+`archive/<same-domain-subpath>/` (so `api/old.md` lands at `archive/api/old.md`),
+stamps lifecycle frontmatter (`status: archived`, `archived_on`, `archived_from`,
+and `archived_reason` when you pass a reason), and regenerates the indexes so the
+doc cleanly leaves its domain INDEX. It prefers `git mv` to preserve history and
+falls back to a plain move when you're not in a git repo.
+
+```bash
+# Preview first — moves nothing
+hewtd archive api/old-endpoints.md --dry-run
+
+# Retire it, recording why
+hewtd archive api/old-endpoints.md -r "Replaced by the v2 endpoint reference"
+```
+
+The **link guard** is on by default: if active docs still link to the target,
+`archive` refuses and lists each offending link so you can fix them first. Pass
+`--force` to archive anyway (those inbound links become dangling):
+
+```bash
+hewtd archive api/old-endpoints.md --force
+```
+
+**`hewtd unarchive <file>`** is the lossless reverse. It restores the doc to the
+path recorded in `archived_from`, sets `status: active`, and strips the
+`archived_*` fields. It refuses if the restore target already exists, so it never
+clobbers a doc you've since recreated.
+
+```bash
+hewtd unarchive archive/api/old-endpoints.md --dry-run
+hewtd unarchive archive/api/old-endpoints.md
+```
+
+**`hewtd archive-candidates`** is advisory and **read-only** — it never moves
+anything. It lists docs that may warrant archiving, each with a score and the
+reasons behind it:
+
+```bash
+hewtd archive-candidates
+hewtd archive-candidates --json
+```
+
+The candidate signals, ranked:
+
+1. **`status: deprecated`** — a strong, explicit signal. Qualifies a doc on its
+   own.
+2. **`superseded_by:` frontmatter** — also strong and explicit. Qualifies alone.
+3. **Orphaned** (zero inbound links) — a weaker signal on its own.
+4. **Stale** — git-last-touched (or `last_updated` as a fallback when git is
+   unavailable) older than `candidate_after_days`. Age **only** contributes when
+   the doc is *also* orphaned; it never qualifies a doc by itself.
+
+##### `archive` config block
+
+Tune detection in `.claude/hit-em-with-the-docs.json` under an `archive` key. All
+four keys are optional; the defaults are conservative on purpose:
+
+```json
+{
+  "archive": {
+    "honor_status_deprecated": true,
+    "candidate_after_days": 365,
+    "require_orphaned": true,
+    "auto": false
+  }
+}
+```
+
+- `honor_status_deprecated` (default `true`) — treat `status: deprecated` as a
+  qualifying candidate signal.
+- `candidate_after_days` (default `365`) — the staleness threshold in days.
+- `require_orphaned` (default `true`) — gate the age signal behind "also
+  orphaned." Set it `false` to let age qualify a doc on its own (not
+  recommended).
+- `auto` (default `false`) — nothing is ever auto-archived. This is the
+  propose-don't-impose default; archiving is always a human decision.
+
+##### Audit nudge: `deprecated-not-archived`
+
+`status: deprecated` and archiving are different steps. Marking a doc
+`deprecated` flags intent while keeping it live, indexed, and linkable; archiving
+physically retires it. To keep `deprecated` from being a dead-end label, the
+auditor now raises an **INFO** issue (`deprecated-not-archived`) for any doc left
+at `status: deprecated` in an active domain folder, suggesting
+`hewtd archive <file>`. That's what finally makes `status: deprecated`
+actionable.
 
 ### Domain System
 

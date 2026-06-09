@@ -19,6 +19,8 @@ If `$ARGUMENTS` matches one of the topics below, focus the orientation on that t
 - `audit` — explain `hewtd audit` + `--strict`; explain when to use each
 - `integrate` — explain `hewtd integrate <file>` and when to use it
 - `templates` — list available templates with paths
+- `domains` — explain the 15 built-in domains + custom domains (`hewtd domain add/remove/list`, 2.6.0+)
+- `archive` / `deprecation` — explain the archival workflow (`hewtd archive/unarchive/archive-candidates`, 2.7.0+)
 
 ## What hewtd does (the one-paragraph brief)
 
@@ -31,6 +33,7 @@ If `$ARGUMENTS` matches one of the topics below, focus the orientation on that t
 3. **Creating a fact in the knowledge base (2.3.0+)** — copy `templates/knowledge-base/fact.template.md` into `<vault-root>/facts/<kebab-id>.md`, fill in required fields (`id`, `confidence`, `last_verified`, `provenance`).
 4. **Documenting an incident (2.3.0+)** — create `<vault-root>/incidents/YYYY-MM-DD-slug/` with both `narrative.md` and `facts.md` from the templates.
 5. **Enriching a playbook (2.3.0+)** — add a `symptoms:` block to a playbook's frontmatter; cite the facts the playbook depends on.
+6. **Deprecating / retiring a doc (2.7.0+)** — `hewtd archive <file>` moves a stale doc into `.documentation/archive/` (excluded from all scans), reversibly and link-safely. Run `hewtd archive-candidates` to see what's worth retiring; `hewtd unarchive <file>` to bring one back.
 
 ## Commands available
 
@@ -44,10 +47,16 @@ CLI (via `npx --no @theglitchking/hit-em-with-the-docs <cmd>` or `hewtd <cmd>` i
 - `integrate <file>` — auto-classify and place a raw markdown file
 - `discover patterns|anti-patterns|standards|dependencies` — extract conventions from source code
 - `report health|audit|links` — generate detailed reports
-- `list` — list all 15 domains
+- `list` — list the built-in domains
+- `domain list|add|remove` — manage custom domains (2.6.0+); `add <id> -k <keywords>` registers + scaffolds a project-specific domain
+- `archive <file>` — deprecate a doc into `archive/` (reversible, link-safe, reindexes) (2.7.0+)
+- `unarchive <file>` — restore an archived doc to its domain folder (2.7.0+)
+- `archive-candidates` — advisory list of docs worth retiring (2.7.0+)
 - `search <query>` — search documentation
 
 Slash commands (Claude Code):
+- `/hit-em-with-the-docs:domain` — add/remove/list custom domains (2.6.0+)
+- `/hit-em-with-the-docs:archive` — deprecate/restore docs, or list candidates (2.7.0+)
 - `/hit-em-with-the-docs:status` — installed version, update policy, hook state
 - `/hit-em-with-the-docs:policy [auto|nudge|off]` — get/set update policy
 - `/hit-em-with-the-docs:update` — pull the latest version

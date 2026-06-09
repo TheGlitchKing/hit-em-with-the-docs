@@ -353,6 +353,21 @@ async function auditFile(filePath: string, docsPath: string): Promise<AuditIssue
       }
     }
 
+    // Deprecation nudge: a doc marked `status: deprecated` is, by definition,
+    // still in an active domain folder (archived docs live under archive/ and
+    // are not scanned). Nudge toward the archival process. This is what finally
+    // makes `status: deprecated` actionable.
+    if (data.status === 'deprecated') {
+      issues.push({
+        file: relPath,
+        rule: 'deprecated-not-archived',
+        severity: 'info',
+        message: 'Document is marked deprecated but still in an active domain folder',
+        fixable: false,
+        suggestion: `Retire it with \`hewtd archive ${relPath}\` (or restore it to active)`,
+      });
+    }
+
     // Check for empty tags
     if (data.tags && data.tags.length === 0 && data.status === 'active') {
       issues.push({

@@ -503,6 +503,123 @@ domain
     logger.info(`Folder left intact: ${result.domainFolder}`);
   });
 
+// --- Archival process: archive / unarchive / archive-candidates ---
+
+program
+  .command('archive <file>')
+  .description(
+    'Archive (deprecate) a doc: move it into archive/, stamp lifecycle metadata, reindex. Non-destructive + reversible.'
+  )
+  .option('-p, --path <path>', 'Documentation path', '.documentation')
+  .option('-r, --reason <reason>', 'Why this doc is being archived')
+  .option('--force', 'Archive even if active docs still link to it', false)
+  .option('--dry-run', 'Preview without moving anything', false)
+  .action(async (file, options) => {
+    const { archiveDoc } = await import('../core/archive/manage.js');
+    const docsPath = resolve(process.cwd(), options.path);
+    const result = await archiveDoc({
+      projectRoot: process.cwd(),
+      docsPath,
+      file,
+      reason: options.reason,
+      force: options.force,
+      dryRun: options.dryRun,
+    });
+
+    logger.header(`hewtd archive: ${file}`);
+    if (!result.ok) {
+      for (const e of result.errors) logger.error(e);
+      if (result.action === 'blocked' && result.inboundLinks.length > 0) {
+        logger.info('');
+        logger.info('Active docs linking here (fix these or use --force):');
+        for (const l of result.inboundLinks) {
+          logger.info(`  ${l.source}:${l.lineNumber}  "${l.linkText}"`);
+        }
+      }
+      process.exit(1);
+    }
+    logger.info(`From: ${result.from}`);
+    logger.info(`To:   ${result.to}`);
+    if (result.inboundLinks.length > 0) {
+      logger.warn(
+        `${result.inboundLinks.length} active doc(s) link here — these become dangling:`
+      );
+      for (const l of result.inboundLinks) logger.info(`  ${l.source}:${l.lineNumber}`);
+    }
+    if (result.action === 'dry_run') {
+      logger.info('');
+      logger.info('Dry-run — nothing moved. Re-run without --dry-run to apply.');
+      return;
+    }
+    logger.success(`Archived via ${result.moveMethod}. Run \`hewtd maintain\` any time to refresh.`);
+  });
+
+program
+  .command('unarchive <file>')
+  .description('Restore an archived doc back to its domain folder (reverse of archive).')
+  .option('-p, --path <path>', 'Documentation path', '.documentation')
+  .option('--dry-run', 'Preview without moving anything', false)
+  .action(async (file, options) => {
+    const { unarchiveDoc } = await import('../core/archive/manage.js');
+    const docsPath = resolve(process.cwd(), options.path);
+    const result = await unarchiveDoc({
+      projectRoot: process.cwd(),
+      docsPath,
+      file,
+      dryRun: options.dryRun,
+    });
+
+    logger.header(`hewtd unarchive: ${file}`);
+    if (!result.ok) {
+      for (const e of result.errors) logger.error(e);
+      process.exit(1);
+    }
+    logger.info(`From: ${result.from}`);
+    logger.info(`To:   ${result.to}`);
+    if (result.action === 'dry_run') {
+      logger.info('');
+      logger.info('Dry-run — nothing moved. Re-run without --dry-run to apply.');
+      return;
+    }
+    logger.success(`Restored via ${result.moveMethod}.`);
+  });
+
+program
+  .command('archive-candidates')
+  .description('List docs that may warrant archiving (advisory — never moves anything).')
+  .option('-p, --path <path>', 'Documentation path', '.documentation')
+  .option('--json', 'Output as JSON', false)
+  .action(async (options) => {
+    const { loadPluginConfig } = await import('../utils/config.js');
+    const { findArchiveCandidates } = await import('../core/archive/candidates.js');
+    const docsPath = resolve(process.cwd(), options.path);
+    const config = await loadPluginConfig(process.cwd());
+
+    const candidates = await findArchiveCandidates({
+      docsPath,
+      projectRoot: process.cwd(),
+      config: config.archive,
+    });
+
+    if (options.json) {
+      logger.info(JSON.stringify(candidates, null, 2));
+      return;
+    }
+
+    logger.header('Archive candidates');
+    if (candidates.length === 0) {
+      logger.success('No archival candidates. Nothing flagged.');
+      return;
+    }
+    for (const c of candidates) {
+      logger.info(`  ${c.file}  (score ${c.score})`);
+      for (const r of c.reasons) logger.info(`      - ${r}`);
+    }
+    logger.info('');
+    logger.info('These are suggestions only. Archive one with:');
+    logger.info('  hewtd archive <file> --dry-run    # preview, then drop --dry-run');
+  });
+
 // --- 2.3.0: knowledge-base commands ---
 
 program
