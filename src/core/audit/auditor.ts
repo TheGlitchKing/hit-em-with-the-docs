@@ -13,7 +13,7 @@ import {
 import { KB_ERROR_SEVERITY, type KbErrorCode } from '../metadata/errors.js';
 import { detectDomainFromPath } from '../domains/detector.js';
 import { isValidTier, TIERS } from '../domains/classifier.js';
-import { isValidDomain, DOMAINS } from '../domains/constants.js';
+import { isValidDomain, getAllDomains } from '../domains/registry.js';
 import { checkNamingConvention, checkFilePlacement } from './rules.js';
 
 export interface AuditOptions {
@@ -393,7 +393,7 @@ async function checkIndexDrift(
   domainFilter?: string
 ): Promise<AuditIssue[]> {
   const issues: AuditIssue[] = [];
-  const domains = domainFilter ? [domainFilter] : [...DOMAINS];
+  const domains = domainFilter ? [domainFilter] : getAllDomains();
   const suggestion = 'Run `hewtd index` (or `hewtd maintain`) to regenerate it';
 
   for (const domain of domains) {

@@ -54,15 +54,19 @@ version: 1.0.0          # semver — OPTIONAL for lifecycle-tracked tiers
 
 Lifecycle-tracked tiers (`plan`, `fact`, `incident-narrative`, `incident-facts`) skip `version` and use tier-specific status enums. See per-tier extensions in `docs/knowledge-base-primitives.md` and `docs/plan-tier-frontmatter.md`.
 
-## The 15 domains
+## Domains (15 built-in + custom)
+
+There are **15 built-in domains** — part of the compiled contract, always present:
 
 `security`, `devops`, `database`, `api`, `standards`, `testing`, `architecture`, `features`, `quickstart`, `procedures`, `workflows`, `agents`, `backups`, `troubleshooting`, `plans`.
+
+Projects can add **custom domains** beyond these via `hewtd domain add <id> -k <keywords>` (2.6.0+). Custom domains are stored in `.claude/hit-em-with-the-docs.json` under `domains: []`, get a scaffolded `.documentation/<id>/` folder, and are then valid in the `domains:` frontmatter array just like a built-in. Run `hewtd domain list` to see the active set (built-in + custom). The `keywords` on a custom domain drive auto-classification in `hewtd integrate`.
 
 Files belong in `<docs-path>/<domain>/<filename>.md`. The auditor warns when files appear to be in the wrong domain.
 
 ## Knowledge-base authoring (2.3.0+)
 
-The KB subtree lives at `.documentation/knowledge-base/` by default (configurable via `.claude/hit-em-with-the-docs.json` → `vault.root`).
+The KB subtree lives at `.documentation/knowledge-base/` by default (configurable via `.claude/hit-em-with-the-docs.json` → `vault.root`). That same config file also holds the `domains: []` array — custom domains added via `hewtd domain add` (2.6.0+). Each entry has `id`, `name`, `description`, `keywords` (≥1), `loadPriority` (1-10), and `category` (one of `core | development | features | advanced`). You normally don't hand-edit this; use `hewtd domain add/remove`.
 
 ```
 <vault-root>/
@@ -112,7 +116,10 @@ Use Bash to run these. They're all available via `npx --no @theglitchking/hit-em
 | `hewtd discover anti-patterns` | Detect anti-patterns in source code. |
 | `hewtd report {health\|audit\|links}` | Generate a saved report. |
 | `hewtd search <query>` | Cross-doc text search. |
-| `hewtd list` | List all 15 domains. |
+| `hewtd list` | List all built-in domains. |
+| `hewtd domain list` | List built-in + custom domains (mark each by kind). |
+| `hewtd domain add <id> -k <keywords>` | Add a custom domain (keywords REQUIRED). Validates, writes config, scaffolds the folder. Use `--dry-run` to preview first. |
+| `hewtd domain remove <id>` | Remove a custom domain from config. Never deletes docs — reports how many become orphaned. Can't remove a built-in. |
 
 ## Slash commands (Claude Code)
 
@@ -121,6 +128,7 @@ Use Bash to run these. They're all available via `npx --no @theglitchking/hit-em
 | `/hit-em-with-the-docs:help` | Orient yourself or the user on hewtd's surface |
 | `/hit-em-with-the-docs:status` | Show installed version, update policy, hook state |
 | `/hit-em-with-the-docs:policy [auto\|nudge\|off]` | Get/set the update policy |
+| `/hit-em-with-the-docs:domain list\|add\|remove` | Manage custom domains (add confirms via dry-run; remove confirms the orphaned-doc count before applying) |
 | `/hit-em-with-the-docs:update` | Update to the latest version |
 | `/hit-em-with-the-docs:relink` | Re-run the skill linker (no-op for hewtd; useful for plugin-stack debugging) |
 
@@ -139,6 +147,7 @@ When `hewtd audit` reports an `AuditIssue.code`, it's one of the 2.3.0 KB error 
 
 - **Don't write to `<vault-root>/{facts,incidents,symptoms}/INDEX.md`** — those are auto-generated. Edits will be overwritten on the next `hewtd maintain`.
 - **Don't invent new tiers** — the 9 in this guide are exhaustive. If you think you need a new tier, ask the user.
+- **Don't drop docs into an undeclared domain folder.** If a doc genuinely needs a new domain, the supported path is `hewtd domain add <id> -k <keywords>` (which registers it + scaffolds the folder) — not hand-creating a `.documentation/<id>/` folder. Ask the user before adding a domain.
 - **Don't skip frontmatter** — every doc in `.documentation/` needs it. The auditor will flag missing fields.
 - **Don't move docs between domains without running `hewtd link-check` afterward** — internal links break silently otherwise.
 - **Don't manually quote dates in YAML if you don't have to** — as of 2.3.0, both `last_updated: 2026-05-14` and `last_updated: '2026-05-14'` are accepted.

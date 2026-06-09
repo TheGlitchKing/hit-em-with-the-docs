@@ -4,7 +4,7 @@ import { findMarkdownFiles } from '../../utils/glob.js';
 import { extractLinks } from '../../utils/markdown.js';
 import { detectDomainFromPath } from '../domains/detector.js';
 import type { Domain } from '../domains/constants.js';
-import { DOMAINS } from '../domains/constants.js';
+import { getAllDomains } from '../domains/registry.js';
 
 export interface LinkGraph {
   nodes: LinkNode[];
@@ -111,9 +111,13 @@ export async function buildDomainConnectionMatrix(
 ): Promise<DomainConnectionMatrix> {
   const graph = await buildLinkGraph(docsPath);
 
+  // Snapshot the active domain set once so the matrix axes and the index
+  // lookups below share a single, stable ordering for this call.
+  const domains = getAllDomains();
+
   // Initialize matrix
-  const matrix: number[][] = DOMAINS.map(() =>
-    DOMAINS.map(() => 0)
+  const matrix: number[][] = domains.map(() =>
+    domains.map(() => 0)
   );
 
   let totalConnections = 0;
@@ -124,8 +128,8 @@ export async function buildDomainConnectionMatrix(
     const targetNode = graph.nodes.find((n) => n.id === edge.target);
 
     if (sourceNode?.domain && targetNode?.domain) {
-      const sourceIdx = DOMAINS.indexOf(sourceNode.domain);
-      const targetIdx = DOMAINS.indexOf(targetNode.domain);
+      const sourceIdx = domains.indexOf(sourceNode.domain);
+      const targetIdx = domains.indexOf(targetNode.domain);
 
       if (sourceIdx !== -1 && targetIdx !== -1) {
         matrix[sourceIdx]![targetIdx]!++;
@@ -135,7 +139,7 @@ export async function buildDomainConnectionMatrix(
   }
 
   return {
-    domains: [...DOMAINS],
+    domains,
     matrix,
     totalConnections,
   };

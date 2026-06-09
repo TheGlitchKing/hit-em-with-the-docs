@@ -1,4 +1,5 @@
-import { DOMAINS, DOMAIN_DEFINITIONS, type Domain } from '../core/domains/constants.js';
+import { type Domain } from '../core/domains/constants.js';
+import { getAllDomains, getDomainDefinition } from '../core/domains/registry.js';
 import { formatDate } from '../core/metadata/generator.js';
 
 export interface IndexEntry {
@@ -38,8 +39,8 @@ purpose: Navigation hub for all documentation
 `;
 
   // Add domain rows
-  for (const domain of DOMAINS) {
-    const def = DOMAIN_DEFINITIONS[domain];
+  for (const domain of getAllDomains()) {
+    const def = getDomainDefinition(domain);
     const count = entries?.[domain]?.length ?? 0;
     content += `| [${def.name}](#${domain}) | ${count} | ${def.description} |\n`;
   }
@@ -47,8 +48,8 @@ purpose: Navigation hub for all documentation
   content += `\n---\n\n`;
 
   // Add domain sections
-  for (const domain of DOMAINS) {
-    const def = DOMAIN_DEFINITIONS[domain];
+  for (const domain of getAllDomains()) {
+    const def = getDomainDefinition(domain);
     const domainEntries = entries?.[domain] ?? [];
 
     content += `## ${def.name}\n\n`;
@@ -86,7 +87,7 @@ export function generateDomainIndexContent(
   domain: Domain,
   entries: IndexEntry[] = []
 ): string {
-  const def = DOMAIN_DEFINITIONS[domain];
+  const def = getDomainDefinition(domain);
   const now = formatDate(new Date());
 
   let content = `---
@@ -148,7 +149,7 @@ purpose: Complete listing of ${domain} documentation
   if (relatedDomains.length > 0) {
     content += `## Related Domains\n\n`;
     for (const related of relatedDomains) {
-      const relatedDef = DOMAIN_DEFINITIONS[related];
+      const relatedDef = getDomainDefinition(related);
       content += `- [${relatedDef.name}](../${related}/) - ${relatedDef.description}\n`;
     }
     content += `\n`;
@@ -189,13 +190,13 @@ function groupByTier(entries: IndexEntry[]): Record<string, IndexEntry[]> {
  * Find related domains based on shared keywords
  */
 function findRelatedDomains(domain: Domain): Domain[] {
-  const def = DOMAIN_DEFINITIONS[domain];
+  const def = getDomainDefinition(domain);
   const related: { domain: Domain; score: number }[] = [];
 
-  for (const other of DOMAINS) {
+  for (const other of getAllDomains()) {
     if (other === domain) continue;
 
-    const otherDef = DOMAIN_DEFINITIONS[other];
+    const otherDef = getDomainDefinition(other);
     let score = 0;
 
     // Check keyword overlap

@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { DOMAINS, DOMAIN_DEFINITIONS, type Domain } from '../core/domains/constants.js';
+import { type Domain } from '../core/domains/constants.js';
+import { getAllDomains, getDomainDefinition } from '../core/domains/registry.js';
 import { generateRootIndex } from './index-generator.js';
 import { generateRootRegistry } from './registry-generator.js';
 import { generateDomainIndex } from './templates/domain-index.js';
@@ -29,7 +30,7 @@ export async function createScaffold(options: ScaffoldOptions): Promise<Scaffold
   const {
     rootPath,
     overwrite = false,
-    domains = [...DOMAINS],
+    domains = getAllDomains(),
     silent = false,
   } = options;
 
@@ -151,7 +152,7 @@ async function createDomainStructure(
   overwrite: boolean
 ): Promise<void> {
   const domainPath = join(rootPath, domain);
-  const def = DOMAIN_DEFINITIONS[domain];
+  const def = getDomainDefinition(domain);
 
   // Create domain directory
   await createDirectory(domainPath, result, overwrite);
@@ -201,7 +202,7 @@ async function createSpecialDirectories(
 function generateRootReadme(): string {
   return `# Documentation
 
-This documentation system uses a hierarchical 15-domain structure for optimal organization and discoverability.
+This documentation system uses a hierarchical, domain-based structure for optimal organization and discoverability.
 
 ## Quick Navigation
 
@@ -212,7 +213,7 @@ This documentation system uses a hierarchical 15-domain structure for optimal or
 
 | Domain | Description |
 |--------|-------------|
-${DOMAINS.map((d) => `| [${d}](${d}/) | ${DOMAIN_DEFINITIONS[d].description} |`).join('\n')}
+${getAllDomains().map((d) => `| [${d}](${d}/) | ${getDomainDefinition(d).description} |`).join('\n')}
 
 ## Adding New Documentation
 
@@ -274,14 +275,14 @@ export async function getScaffoldStatus(rootPath: string): Promise<{
     return {
       exists: false,
       domains: [],
-      missingDomains: [...DOMAINS],
+      missingDomains: getAllDomains(),
     };
   }
 
   const presentDomains: Domain[] = [];
   const missingDomains: Domain[] = [];
 
-  for (const domain of DOMAINS) {
+  for (const domain of getAllDomains()) {
     const domainPath = join(rootPath, domain);
     if (await pathExists(domainPath)) {
       presentDomains.push(domain);

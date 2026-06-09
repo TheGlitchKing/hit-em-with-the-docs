@@ -1,11 +1,11 @@
 import { basename, relative } from 'path';
+import { type Domain } from './constants.js';
 import {
-  Domain,
-  DOMAINS,
-  DOMAIN_DEFINITIONS,
+  getAllDomains,
+  getDomainDefinition,
   getAllKeywords,
   isValidDomain,
-} from './constants.js';
+} from './registry.js';
 
 export interface DomainDetectionResult {
   domain: Domain | null;
@@ -95,7 +95,7 @@ export function detectDomainFromPath(
   // Also check filename for domain hints
   if (!result.domain) {
     const fileName = basename(filePath, '.md');
-    for (const domain of DOMAINS) {
+    for (const domain of getAllDomains()) {
       if (fileName.includes(domain)) {
         result.domain = domain;
         result.confidence = 0.6;
@@ -177,8 +177,8 @@ export function suggestDomainsForFile(fileName: string): Domain[] {
   const suggestions: Domain[] = [];
 
   // Check each domain's keywords against the filename
-  for (const domain of DOMAINS) {
-    const def = DOMAIN_DEFINITIONS[domain];
+  for (const domain of getAllDomains()) {
+    const def = getDomainDefinition(domain);
     for (const keyword of def.keywords) {
       if (baseName.includes(keyword.replace(/-/g, ''))) {
         if (!suggestions.includes(domain)) {
@@ -190,7 +190,7 @@ export function suggestDomainsForFile(fileName: string): Domain[] {
   }
 
   // Also check if domain name is in filename
-  for (const domain of DOMAINS) {
+  for (const domain of getAllDomains()) {
     if (baseName.includes(domain) && !suggestions.includes(domain)) {
       suggestions.unshift(domain);
     }

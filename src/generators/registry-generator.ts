@@ -1,4 +1,9 @@
-import { DOMAINS, DOMAIN_DEFINITIONS, type Domain } from '../core/domains/constants.js';
+import { type Domain } from '../core/domains/constants.js';
+import {
+  getAllDomains,
+  getDomainDefinition,
+  getDomainsByCategory,
+} from '../core/domains/registry.js';
 import { formatDate } from '../core/metadata/generator.js';
 import type { IndexEntry } from './index-generator.js';
 
@@ -28,8 +33,8 @@ purpose: Quick reference for all documentation domains
 |--------|----------|----------|----------|
 `;
 
-  for (const domain of DOMAINS) {
-    const def = DOMAIN_DEFINITIONS[domain];
+  for (const domain of getAllDomains()) {
+    const def = getDomainDefinition(domain);
     const keywords = def.keywords.slice(0, 3).join(', ');
     content += `| [${def.name}](${domain}/) | ${def.category} | ${def.loadPriority}/10 | ${keywords} |\n`;
   }
@@ -40,14 +45,12 @@ purpose: Quick reference for all documentation domains
   const categories = ['core', 'development', 'features', 'advanced'] as const;
 
   for (const category of categories) {
-    const categoryDomains = DOMAINS.filter(
-      (d) => DOMAIN_DEFINITIONS[d].category === category
-    );
+    const categoryDomains = getDomainsByCategory(category);
 
     content += `### ${capitalize(category)}\n\n`;
 
     for (const domain of categoryDomains) {
-      const def = DOMAIN_DEFINITIONS[domain];
+      const def = getDomainDefinition(domain);
       content += `- **[${def.name}](${domain}/)** - ${def.description}\n`;
     }
     content += `\n`;
@@ -77,7 +80,7 @@ export function generateDomainRegistryContent(
   domain: Domain,
   entries: IndexEntry[] = []
 ): string {
-  const def = DOMAIN_DEFINITIONS[domain];
+  const def = getDomainDefinition(domain);
   const now = formatDate(new Date());
 
   let content = `---

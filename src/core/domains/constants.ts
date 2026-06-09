@@ -21,7 +21,25 @@ export const DOMAINS = [
   'workflows',
 ] as const;
 
-export type Domain = (typeof DOMAINS)[number];
+/**
+ * The 15 compiled-in domains. These are guaranteed present in every project.
+ */
+export type BuiltinDomain = (typeof DOMAINS)[number];
+
+/**
+ * A domain id. Widened from the built-in union to also accept arbitrary
+ * (config-supplied) custom domain ids, while preserving autocomplete and
+ * compile-time safety for references to the built-ins (e.g. `'security'`).
+ *
+ * The active set at runtime — built-ins plus any custom domains from
+ * `.claude/hit-em-with-the-docs.json` — is resolved by the registry
+ * (`./registry.ts`). Use the registry's accessors (`getAllDomains`,
+ * `isValidDomain`, `getDomainDefinition`, …) for the live set; the `DOMAINS`
+ * and `DOMAIN_DEFINITIONS` exports below are the BUILT-INS ONLY.
+ */
+export type Domain = BuiltinDomain | (string & {});
+
+export type DomainCategory = 'core' | 'development' | 'features' | 'advanced';
 
 export interface DomainDefinition {
   id: Domain;
@@ -29,10 +47,15 @@ export interface DomainDefinition {
   description: string;
   keywords: string[];
   loadPriority: number; // 1-10, higher = more important to load first
-  category: 'core' | 'development' | 'features' | 'advanced';
+  category: DomainCategory;
 }
 
-export const DOMAIN_DEFINITIONS: Record<Domain, DomainDefinition> = {
+/**
+ * Built-in domain definitions ONLY. The runtime-active set (built-ins +
+ * custom) lives in the registry — do not iterate this directly in feature
+ * code; call `getAllDomains()` / `getDomainDefinition()` from `./registry.ts`.
+ */
+export const DOMAIN_DEFINITIONS: Record<BuiltinDomain, DomainDefinition> = {
   security: {
     id: 'security',
     name: 'Security',
@@ -219,58 +242,12 @@ export const DOMAIN_DEFINITIONS: Record<Domain, DomainDefinition> = {
 };
 
 /**
- * Get domain definition by ID
+ * Check whether a string is one of the 15 BUILT-IN domains. This is a pure,
+ * registry-independent check used where built-in-ness specifically matters
+ * (e.g. `hewtd domain remove` refusing to remove a built-in). For "is this a
+ * valid domain in the active set (built-in OR custom)", use `isValidDomain()`
+ * from `./registry.ts`.
  */
-export function getDomainDefinition(domain: Domain): DomainDefinition {
-  return DOMAIN_DEFINITIONS[domain];
-}
-
-/**
- * Get all domain IDs
- */
-export function getAllDomains(): readonly Domain[] {
-  return DOMAINS;
-}
-
-/**
- * Get domains by category
- */
-export function getDomainsByCategory(
-  category: DomainDefinition['category']
-): Domain[] {
-  return DOMAINS.filter((d) => DOMAIN_DEFINITIONS[d].category === category);
-}
-
-/**
- * Get domains sorted by load priority (highest first)
- */
-export function getDomainsByPriority(): Domain[] {
-  return [...DOMAINS].sort(
-    (a, b) => DOMAIN_DEFINITIONS[b].loadPriority - DOMAIN_DEFINITIONS[a].loadPriority
-  );
-}
-
-/**
- * Check if a string is a valid domain
- */
-export function isValidDomain(value: string): value is Domain {
-  return DOMAINS.includes(value as Domain);
-}
-
-/**
- * Get all keywords across all domains
- */
-export function getAllKeywords(): Map<string, Domain[]> {
-  const keywordMap = new Map<string, Domain[]>();
-
-  for (const domain of DOMAINS) {
-    const def = DOMAIN_DEFINITIONS[domain];
-    for (const keyword of def.keywords) {
-      const existing = keywordMap.get(keyword) ?? [];
-      existing.push(domain);
-      keywordMap.set(keyword, existing);
-    }
-  }
-
-  return keywordMap;
+export function isBuiltinDomain(value: string): value is BuiltinDomain {
+  return (DOMAINS as readonly string[]).includes(value);
 }

@@ -2,13 +2,16 @@ import { describe, it, expect } from 'vitest';
 import {
   DOMAINS,
   DOMAIN_DEFINITIONS,
+  isBuiltinDomain,
+} from '../../../src/core/domains/constants.js';
+import {
   getDomainDefinition,
   getAllDomains,
   getDomainsByCategory,
   getDomainsByPriority,
   isValidDomain,
   getAllKeywords,
-} from '../../../src/core/domains/constants.js';
+} from '../../../src/core/domains/registry.js';
 
 describe('Domain Constants', () => {
   describe('DOMAINS', () => {
@@ -111,6 +114,18 @@ describe('Domain Constants', () => {
       expect(isValidDomain('invalid')).toBe(false);
       expect(isValidDomain('')).toBe(false);
       expect(isValidDomain('SECURITY')).toBe(false); // Case sensitive
+    });
+  });
+
+  describe('isBuiltinDomain', () => {
+    it('should return true only for the 15 compiled-in domains', () => {
+      expect(isBuiltinDomain('security')).toBe(true);
+      expect(isBuiltinDomain('workflows')).toBe(true);
+    });
+
+    it('should return false for non-built-in / custom ids', () => {
+      expect(isBuiltinDomain('compliance')).toBe(false);
+      expect(isBuiltinDomain('')).toBe(false);
     });
   });
 

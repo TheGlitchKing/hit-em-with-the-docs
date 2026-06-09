@@ -27,6 +27,8 @@ This project uses the hit-em-with-the-docs documentation system for hierarchical
 └── plans/             # Planning documents
 ```
 
+These 15 domains are built-in and always present. The set is **extensible** — register project-specific domains at runtime with `npx hit-em-with-the-docs domain add <id> -k <keywords>` (stored in `.claude/hit-em-with-the-docs.json` under `domains: []`, and scaffolded under `.documentation/<id>/`). Run `npx hit-em-with-the-docs domain list` to see the active set, and `domain remove <id>` to drop a custom one (never deletes docs).
+
 ## Commands
 
 ### /docs
@@ -46,7 +48,7 @@ This loads:
 
 #### /docs list
 
-List all 15 documentation domains with descriptions.
+List all documentation domains (the 15 built-in plus any custom domains) with descriptions.
 
 #### /docs search <query>
 
