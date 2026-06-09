@@ -43,6 +43,15 @@ the compiled contract, and the `src/index.ts` exports are additive.
   previews via `--dry-run` and asks before applying (and prompts for the
   required keywords if missing); `remove` reports the orphaned-doc count
   and only applies on explicit confirmation.
+- **Reserved `archive/` folder for deprecated docs.** `<docs>/archive/` is
+  the parking lot for retired documentation — move a doc here instead of
+  deleting it. hewtd **actively excludes** the entire `archive/` subtree
+  from every scan: `audit`, `link-check`, `metadata-sync`, `integrate`
+  duplicate-detection, the link graph, and `search`. Archived docs are not
+  validated, never appear in any INDEX.md/REGISTRY.md, and can't break
+  audit/link-check with stale frontmatter. `init` now scaffolds `archive/`
+  with a README documenting the convention, and `archive` is a reserved
+  name (`hewtd domain add archive` is rejected).
 
 ### Fixed
 

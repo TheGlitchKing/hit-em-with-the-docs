@@ -29,6 +29,8 @@ This project uses the hit-em-with-the-docs documentation system for hierarchical
 
 These 15 domains are built-in and always present. The set is **extensible** — register project-specific domains at runtime with `npx hit-em-with-the-docs domain add <id> -k <keywords>` (stored in `.claude/hit-em-with-the-docs.json` under `domains: []`, and scaffolded under `.documentation/<id>/`). Run `npx hit-em-with-the-docs domain list` to see the active set, and `domain remove <id>` to drop a custom one (never deletes docs).
 
+**Deprecated docs → `.documentation/archive/`.** To retire a doc without deleting it, move it under `archive/`. hewtd excludes that folder from every scan (audit, link-check, metadata-sync, integrate, link graph, search), so archived docs are never validated or indexed. `archive` is reserved and cannot be a domain.
+
 ## Commands
 
 ### /docs

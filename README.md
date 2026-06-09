@@ -909,11 +909,24 @@ When you run `hewtd init`, it creates this structure:
 ├── backups/                  # Backup/recovery (priority: 4)
 ├── plans/                    # Planning docs (priority: 3)
 │
+├── archive/                  # Deprecated docs — EXCLUDED from all scans
+├── drafts/                   # Work-in-progress
 └── reports/                  # Generated reports
     ├── maintenance-YYYYMMDD-HHMMSS.md
     ├── audit-YYYYMMDD-HHMMSS.md
     └── links-YYYYMMDD-HHMMSS.md
 ```
+
+#### Archived / deprecated docs (`archive/`)
+
+Move a doc to `.documentation/archive/` to retire it without deleting it. hewtd
+**excludes the entire `archive/` subtree from every scan** — `audit`,
+`link-check`, `metadata-sync`, `integrate` duplicate-detection, the link graph,
+and `search`. Archived docs are never validated against the frontmatter schema,
+never appear in any INDEX.md/REGISTRY.md, and won't break audit/link-check with
+stale frontmatter. `init` scaffolds the folder with a README explaining the
+convention. `archive` is a reserved name and cannot be registered as a domain.
+To un-deprecate a doc, move it back into a domain folder and run `hewtd maintain`.
 
 ### Domain System
 

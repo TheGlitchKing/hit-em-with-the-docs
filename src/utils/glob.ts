@@ -36,14 +36,37 @@ export async function glob(
 }
 
 /**
- * Find all markdown files in a directory
+ * Reserved documentation subdirectory for DEPRECATED docs. Anything under
+ * `<docs>/archive/` is intentionally excluded from every hewtd scan (audit,
+ * link-check, metadata-sync, integrate dup-detection, link graph, search) —
+ * it's a parking lot for retired docs, not part of the active corpus.
+ */
+export const ARCHIVE_DIR = 'archive';
+
+/** Glob ignores always applied to documentation scans. */
+const DOC_SCAN_IGNORE = [
+  'node_modules/**',
+  'dist/**',
+  '.git/**',
+  `${ARCHIVE_DIR}/**`,
+];
+
+/**
+ * Find all markdown files in a directory.
+ *
+ * Used exclusively as the documentation-corpus scanner, so it always skips
+ * the reserved `archive/` subtree (deprecated docs) in addition to the
+ * standard build/vcs ignores. Callers may pass extra `ignore` patterns; they
+ * are merged, never override the archive exclusion.
  */
 export async function findMarkdownFiles(
   dir: string,
   options: Omit<GlobOptions, 'absolute'> = {}
 ): Promise<string[]> {
+  const { ignore: extraIgnore = [], ...rest } = options;
   return glob('**/*.md', {
-    ...options,
+    ...rest,
+    ignore: [...DOC_SCAN_IGNORE, ...extraIgnore],
     cwd: dir,
     absolute: true,
   });

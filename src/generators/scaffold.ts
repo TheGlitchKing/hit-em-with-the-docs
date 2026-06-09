@@ -7,7 +7,7 @@ import { generateRootRegistry } from './registry-generator.js';
 import { generateDomainIndex } from './templates/domain-index.js';
 import { generateDomainRegistry } from './templates/domain-registry.js';
 import { logger } from '../utils/logger.js';
-import { pathExists } from '../utils/glob.js';
+import { pathExists, ARCHIVE_DIR } from '../utils/glob.js';
 
 export interface ScaffoldOptions {
   rootPath: string;
@@ -167,7 +167,7 @@ async function createDomainStructure(
 }
 
 /**
- * Create special directories (drafts, reports)
+ * Create special directories (drafts, reports, archive)
  */
 async function createSpecialDirectories(
   rootPath: string,
@@ -179,6 +179,9 @@ async function createSpecialDirectories(
 
   // Reports directory
   await createDirectory(join(rootPath, 'reports'), result, overwrite);
+
+  // Archive directory — deprecated docs live here and are NOT scanned.
+  await createDirectory(join(rootPath, ARCHIVE_DIR), result, overwrite);
 
   // Create .gitkeep files to preserve empty directories
   await createFile(
@@ -194,6 +197,45 @@ async function createSpecialDirectories(
     result,
     overwrite
   );
+
+  // Archive README documents the convention (and keeps the dir tracked).
+  await createFile(
+    join(rootPath, ARCHIVE_DIR, 'README.md'),
+    generateArchiveReadme(),
+    result,
+    overwrite
+  );
+}
+
+/**
+ * Generate the archive/ README — the user-facing instruction for the
+ * deprecated-docs convention.
+ */
+function generateArchiveReadme(): string {
+  return `# Archive
+
+This folder is the parking lot for **deprecated documentation**.
+
+Move a doc here when it is retired but you don't want to delete it (historical
+reference, superseded guides, old runbooks, etc.).
+
+## hewtd ignores this folder
+
+Everything under \`archive/\` is **excluded from every hewtd scan** — \`audit\`,
+\`link-check\`, \`metadata-sync\`, \`integrate\` duplicate-detection, the link
+graph, and \`search\`. Archived docs:
+
+- are **not** validated against the frontmatter schema,
+- do **not** appear in any INDEX.md / REGISTRY.md,
+- do **not** break link-check or audit if their frontmatter is stale.
+
+In other words: parking a doc here takes it out of the active corpus without
+losing it. To bring a doc back, move it into the appropriate domain folder and
+run \`hewtd maintain\`.
+
+> Note: \`archive/\` is a reserved name. Do not create a custom domain called
+> \`archive\`.
+`;
 }
 
 /**

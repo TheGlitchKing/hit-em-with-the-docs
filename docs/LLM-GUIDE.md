@@ -64,6 +64,10 @@ Projects can add **custom domains** beyond these via `hewtd domain add <id> -k <
 
 Files belong in `<docs-path>/<domain>/<filename>.md`. The auditor warns when files appear to be in the wrong domain.
 
+### Deprecating a doc: the `archive/` folder
+
+To retire a doc without deleting it, move it to `<docs-path>/archive/`. hewtd **excludes the entire `archive/` subtree from every scan** (audit, link-check, metadata-sync, integrate dup-detection, link graph, search). Archived docs are not validated, never indexed, and won't break audit/link-check with stale frontmatter — so you can park outdated content there freely. `archive` is a reserved name (not a domain; `hewtd domain add archive` is rejected). To un-deprecate, move the file back into a domain folder and run `hewtd maintain`.
+
 ## Knowledge-base authoring (2.3.0+)
 
 The KB subtree lives at `.documentation/knowledge-base/` by default (configurable via `.claude/hit-em-with-the-docs.json` → `vault.root`). That same config file also holds the `domains: []` array — custom domains added via `hewtd domain add` (2.6.0+). Each entry has `id`, `name`, `description`, `keywords` (≥1), `loadPriority` (1-10), and `category` (one of `core | development | features | advanced`). You normally don't hand-edit this; use `hewtd domain add/remove`.
