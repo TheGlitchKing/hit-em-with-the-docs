@@ -29,9 +29,6 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-      - name: Lint
-        run: npm run lint
-
       - name: Build
         run: npm run build
 
@@ -44,6 +41,15 @@ jobs:
         with:
           files: ./coverage/coverage-final.json
           fail_ci_if_error: false
+
+      # Runs LAST and cannot fail the job: the repo has no ESLint config, so
+      # `npm run lint` has never been able to run. While it sat ahead of Build
+      # and Test it failed the job every time, skipping them — the test suite
+      # had never once executed in CI. Restore the gate (drop continue-on-error
+      # and move this back above Build) once a config lands. See #14.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
 
   action-build:
     runs-on: ubuntu-latest
