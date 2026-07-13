@@ -75,6 +75,12 @@ export interface RegenerateOptions {
    */
   domains?: Domain[];
   silent?: boolean;
+  /**
+   * Compute everything, write nothing. `filesWritten` then lists the files
+   * that WOULD be written. Exists so users can preview the (large, one-time)
+   * diff the 2.7.1 recursive walk produces before committing to it.
+   */
+  dryRun?: boolean;
 }
 
 export interface RegenerateResult {
@@ -219,7 +225,7 @@ async function buildDomainEntries(
 export async function regenerateIndexes(
   options: RegenerateOptions
 ): Promise<RegenerateResult> {
-  const { docsPath, silent = false } = options;
+  const { docsPath, silent = false, dryRun = false } = options;
   const allDomains = getAllDomains();
   const targetDomains = options.domains ?? allDomains;
 
@@ -250,16 +256,18 @@ export async function regenerateIndexes(
 
     const indexPath = join(domainDir, 'INDEX.md');
     const registryPath = join(domainDir, 'REGISTRY.md');
-    await writeFile(
-      indexPath,
-      generateDomainIndexContent(domain, domainEntries),
-      'utf-8'
-    );
-    await writeFile(
-      registryPath,
-      generateDomainRegistryContent(domain, domainEntries),
-      'utf-8'
-    );
+    if (!dryRun) {
+      await writeFile(
+        indexPath,
+        generateDomainIndexContent(domain, domainEntries),
+        'utf-8'
+      );
+      await writeFile(
+        registryPath,
+        generateDomainRegistryContent(domain, domainEntries),
+        'utf-8'
+      );
+    }
     result.filesWritten.push(indexPath, registryPath);
   }
 
@@ -267,19 +275,22 @@ export async function regenerateIndexes(
   if (await pathExists(docsPath)) {
     const rootIndexPath = join(docsPath, 'INDEX.md');
     const rootRegistryPath = join(docsPath, 'REGISTRY.md');
-    await writeFile(
-      rootIndexPath,
-      generateRootIndex(rootEntriesByDomain as Record<Domain, IndexEntry[]>),
-      'utf-8'
-    );
-    await writeFile(rootRegistryPath, generateRootRegistry(), 'utf-8');
+    if (!dryRun) {
+      await writeFile(
+        rootIndexPath,
+        generateRootIndex(rootEntriesByDomain as Record<Domain, IndexEntry[]>),
+        'utf-8'
+      );
+      await writeFile(rootRegistryPath, generateRootRegistry(), 'utf-8');
+    }
     result.filesWritten.push(rootIndexPath, rootRegistryPath);
   }
 
   if (!silent) {
     logger.success(
-      `Regenerated ${result.filesWritten.length} index file(s) — ` +
-        `${result.totalDocuments} document(s) across ${allDomains.length} domains`
+      `${dryRun ? 'Would regenerate' : 'Regenerated'} ${result.filesWritten.length} ` +
+        `index file(s) — ${result.totalDocuments} document(s) across ` +
+        `${allDomains.length} domains`
     );
   }
 

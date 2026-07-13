@@ -2,6 +2,92 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.1] — 2026-07-13
+
+The indexer walks subfolders. Until now `listDomainDocFiles()` did a flat
+`readdir` of each domain, so **every document in a subfolder was invisible
+to the entire system** — never indexed, never counted, never drift-checked.
+In the repository that surfaced this, 215 documents were structurally
+absent from every index: `standards/INDEX.md` claimed that domain held two
+documents when it held fifty.
+
+> ### ⚠️ Read before upgrading: your first index run will be large
+>
+> The first `hewtd index` or `hewtd maintain` after this release **adds a row
+> for every document that was previously invisible** — several hundred in any
+> repo that uses subfolders (215 in the tree that surfaced this, taking its
+> root index from 160 rows to 369). This is correct: those documents were always
+> supposed to be indexed. But it is a big, surprising diff, so preview it first:
+>
+> ```bash
+> hewtd index --dry-run
+> ```
+>
+> Nothing under `archive/`, `drafts/`, `reports/`, or the vault's generated
+> subtrees is in that diff. And if you worked around this bug by hand-curating
+> root-index rows that point into subfolders, **delete them** — those documents
+> are generated for you now. See [docs/indexing.md](docs/indexing.md).
+
+This was not merely a missing-rows bug. `hewtd index`/`maintain` regenerate the
+root INDEX **from disk**, so regeneration actively **deleted** hand-curated
+root-index entries pointing into subfolders — a user running `maintain` in good
+faith would commit that deletion. The practical rule in any repo with subfolders
+became "curate the index by hand and never run the indexer," which is backwards.
+Fixing that is why this is a bug fix and not a feature.
+
+### Fixed
+
+- **The domain walk is recursive** (`listDomainDocFiles`). Documents at any
+  depth are now indexed, as domain-relative POSIX subpaths: `standards/backend/foo.md`
+  appears in `standards/INDEX.md` as `backend/foo.md` and in the root `INDEX.md`
+  as `standards/backend/foo.md`.
+- **Two more consumers silently shared the same blind spot**, and both are fixed
+  by the same change. The **`index-drift` audit rule** compared `INDEX.md` against
+  a document list produced by the *same* flat function — so drift on a nested doc
+  was undetectable **by construction**, which is how this rotted unnoticed. It now
+  reports them (`standards/INDEX.md lists 2 of 50 document(s)`). The **`domain remove`
+  orphan count** likewise undercounted by the same set.
+- **Title fallback takes the basename.** A nested document with no frontmatter
+  `title` now renders as "Entity Schema Contract", not "Backend/entity Schema Contract".
+- **A malformed frontmatter block no longer aborts the run.** `gray-matter` throws
+  on bad YAML, and a broken *nested* doc could previously sit unnoticed for months
+  because nothing ever read it. Now that the walk reaches it, one bad file would have
+  killed `index`/`maintain` for the whole project with a stack trace. Such a document
+  is now indexed anyway — with a filename-derived title and a warning naming the file
+  and the YAML error. It stays findable; skipping it silently would have recreated
+  the very bug being fixed.
+
+### Added
+
+- **`hewtd index --dry-run`** — preview without writing. Prints the per-domain
+  count with the delta against what each `INDEX.md` lists today
+  (`features  164 documents  (+157 not currently listed)`) and a total. Added
+  specifically so the one-time upgrade diff above is something you *look at*
+  before it lands, rather than something you discover in `git diff`.
+- **[`docs/indexing.md`](docs/indexing.md)** — the indexing contract, which did not
+  exist before and whose absence is part of why this bug survived: what is indexed,
+  what never is *and why*, where the behavior lives in the code, and a
+  symptom-indexed troubleshooting ladder ("a doc I wrote is missing from the index",
+  "`hewtd index` deleted rows from my root INDEX", "my index grew by hundreds of rows").
+
+### Exclusions — now explicit, because the deeper walk can reach them
+
+A flat scan physically could not descend into `archive/` or a vendored doc tree, so
+those exclusions held **by accident**. The moment the walk goes deep, that accident
+stops holding. Excluded by path segment, at any depth: `archive/`, `drafts/`,
+`reports/`, `_templates/`, `node_modules/`, and a nested `.documentation/`. A nested
+`INDEX.md`/`REGISTRY.md` is matched by basename and never treated as a document.
+
+**And the vault.** `facts/`, `incidents/`, and `symptoms/` under `vault.root` are
+withheld from the generic domain index. Projects commonly register `knowledge-base`
+as a domain *and* as the vault root; without this, a recursive walk would sweep every
+fact and incident narrative into a generic INDEX — indexed a second time, and rendered
+as if they were ordinary guides. The exclusion is scoped to those three
+generator-owned subtrees, not the whole vault, so a `knowledge-base/README.md` stays
+indexed exactly as it always was and this release **only ever adds rows**.
+
+Fixes [#12](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/12).
+
 ## [2.7.0] — 2026-06-08
 
 The archival process. 2.6.0 shipped `archive/` as a passive folder

@@ -295,6 +295,45 @@ describe('Recursive domain indexing (2.7.1 — issue #12)', () => {
     expect(domainIndex).not.toContain('Backend/foo');
   });
 
+  it('survives a nested doc with malformed frontmatter, and still indexes it', async () => {
+    // Found by driving a real tree, not a fixture: gray-matter THROWS on bad
+    // YAML, and pre-fix these files were never read. Once the walk goes deep,
+    // one broken frontmatter block would abort the run for the whole project.
+    await writeDoc(join(docsPath, 'features', 'ok', 'good.md'), doc('Good Doc'));
+    await writeDoc(
+      join(docsPath, 'features', 'ux-assist', 'broken.md'),
+      `---\ntitle: Broken\nstatus: SUPERSEDED (lean: shared <Strip> + per-page: thing)\n---\n\n# Broken\n`
+    );
+
+    const result = await regenerateIndexes({ docsPath, silent: true });
+
+    // Both docs indexed — the malformed one is NOT silently dropped, which
+    // would recreate the very bug being fixed (a doc invisible to the index).
+    expect(result.documentCounts.features).toBe(2);
+
+    const domainIndex = await readFile(join(docsPath, 'features', 'INDEX.md'), 'utf-8');
+    expect(domainIndex).toContain('(ok/good.md)');
+    expect(domainIndex).toContain('(ux-assist/broken.md)');
+    // It falls back to the filename-derived title, since its frontmatter is unreadable.
+    expect(domainIndex).toContain('[Broken](ux-assist/broken.md)');
+  });
+
+  it('dryRun computes the full result but writes nothing', async () => {
+    await writeDoc(join(docsPath, 'standards', 'backend', 'fastapi.md'), doc('FastAPI'));
+    const before = await readFile(join(docsPath, 'standards', 'INDEX.md'), 'utf-8');
+
+    const result = await regenerateIndexes({ docsPath, silent: true, dryRun: true });
+
+    // Reports everything it WOULD do...
+    expect(result.documentCounts.standards).toBe(1);
+    expect(result.filesWritten.length).toBe(15 * 2 + 2);
+
+    // ...and touches nothing.
+    const after = await readFile(join(docsPath, 'standards', 'INDEX.md'), 'utf-8');
+    expect(after).toBe(before);
+    expect(after).not.toContain('FastAPI');
+  });
+
   it('detects index drift on a nested document', async () => {
     // Pre-fix this was undetectable BY CONSTRUCTION: the drift rule compared
     // INDEX.md against a doc list that shared the same blind spot.
