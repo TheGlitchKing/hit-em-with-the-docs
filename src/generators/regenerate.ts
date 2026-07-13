@@ -1,10 +1,11 @@
 import { readdir, readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { basename, dirname, join, relative, resolve, sep } from 'path';
 import { type Domain } from '../core/domains/constants.js';
 import { getAllDomains } from '../core/domains/registry.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
 import { formatDate } from '../core/metadata/generator.js';
 import { pathExists } from '../utils/glob.js';
+import { loadPluginConfigSync, resolveVaultRoot } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import {
   generateRootIndex,
@@ -18,6 +19,51 @@ import {
 
 /** Generated files that are never themselves treated as documents. */
 const SYSTEM_FILES = new Set(['INDEX.md', 'REGISTRY.md']);
+
+/**
+ * Directory names that are never part of the active corpus, at any depth
+ * inside a domain. Before the walk went recursive these were excluded by
+ * accident — a flat readdir physically could not reach them — so this set is
+ * what keeps a hand-made `features/archive/` or a vendored doc tree from being
+ * published into a live index.
+ */
+const EXCLUDED_DIRS = new Set([
+  'archive',
+  'drafts',
+  'reports',
+  '_templates',
+  'node_modules',
+  '.documentation',
+]);
+
+/**
+ * Vault subtrees that have their own generators (`facts-index`,
+ * `incidents-index`, `symptoms-index`) and their own lifecycle tiers
+ * (`fact`, `incident-narrative`, `incident-facts`).
+ *
+ * Only these are withheld from the generic domain index — not the whole vault
+ * root. A project that registers the vault root as a domain (as
+ * `knowledge-base` commonly is) still gets its top-level docs indexed as it
+ * always has; what it must never get is every fact and incident narrative
+ * swept into a generic INDEX/REGISTRY, indexed a second time and rendered as
+ * if they were ordinary guides.
+ */
+const VAULT_GENERATED_SUBDIRS = ['facts', 'incidents', 'symptoms'];
+
+/**
+ * Prefixes, relative to the docs root, that the vault's own generators own —
+ * e.g. `['knowledge-base/facts', 'knowledge-base/incidents', ...]`. Empty when
+ * the configured vault lives outside the docs tree entirely.
+ */
+function vaultOwnedPrefixes(docsPath: string): string[] {
+  const docsAbs = resolve(docsPath);
+  const projectRoot = dirname(docsAbs);
+  const vaultAbs = resolveVaultRoot(projectRoot, loadPluginConfigSync(projectRoot));
+  const rel = relative(docsAbs, vaultAbs);
+  if (!rel || rel.startsWith('..')) return [];
+  const vaultPath = rel.split(sep).join('/');
+  return VAULT_GENERATED_SUBDIRS.map((sub) => `${vaultPath}/${sub}`);
+}
 
 export interface RegenerateOptions {
   /** Path to the documentation root (e.g. `.documentation`). */
@@ -41,18 +87,33 @@ export interface RegenerateResult {
 }
 
 /**
- * List the document files in a domain directory, excluding the generated
- * INDEX.md / REGISTRY.md. Returns sorted file names (not paths). Empty when
- * the domain directory does not exist.
+ * List the document files in a domain directory, walking subfolders. Returns
+ * sorted, domain-relative POSIX paths (`backend/entity-schema-contract.md`).
+ * Empty when the domain directory does not exist.
+ *
+ * This is the shared spine for three consumers — the index generator, the
+ * `index-drift` audit rule, and the `domain remove` orphan count — so what it
+ * excludes, the whole system excludes: the generated INDEX/REGISTRY at any
+ * depth, `EXCLUDED_DIRS`, and the vault's generator-owned subtrees (issue #12).
  */
 export async function listDomainDocFiles(
   docsPath: string,
   domain: string
 ): Promise<string[]> {
+  const vaultPrefixes = vaultOwnedPrefixes(docsPath);
+  const inVault = (docRelPath: string): boolean => {
+    const fromDocsRoot = `${domain}/${docRelPath}`;
+    return vaultPrefixes.some((prefix) => fromDocsRoot.startsWith(`${prefix}/`));
+  };
+
   try {
-    const names = await readdir(join(docsPath, domain));
+    const names = await readdir(join(docsPath, domain), { recursive: true });
     return names
-      .filter((n) => n.endsWith('.md') && !SYSTEM_FILES.has(n))
+      .map((n) => n.split(sep).join('/'))
+      .filter((n) => n.endsWith('.md'))
+      .filter((n) => !SYSTEM_FILES.has(basename(n)))
+      .filter((n) => !n.split('/').some((seg) => EXCLUDED_DIRS.has(seg)))
+      .filter((n) => !inVault(n))
       .sort();
   } catch {
     return [];
@@ -74,9 +135,14 @@ function countWords(body: string): number {
   return body.split(/\s+/).filter(Boolean).length;
 }
 
-/** Derive a human title from a file name when frontmatter has no title. */
+/**
+ * Derive a human title from a file name when frontmatter has no title. Takes
+ * the basename: the input is a domain-relative subpath, and title-casing the
+ * whole thing would render `backend/entity-schema-contract.md` as
+ * "Backend/entity Schema Contract".
+ */
 function titleFromFileName(fileName: string): string {
-  return fileName
+  return basename(fileName)
     .replace(/\.md$/, '')
     .replace(/[-_]/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
