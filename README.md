@@ -874,6 +874,26 @@ src/
     └── logger.ts            # Logging and output formatting
 ```
 
+### Indexing: what counts as a document
+
+`INDEX.md` and `REGISTRY.md` are **generated** — `index`, `maintain`, and
+`integrate` rebuild them from disk, so a row you add by hand is overwritten on
+the next run.
+
+Domain folders are walked **recursively**, so a document at any depth inside a
+domain is indexed (`standards/backend/foo.md` appears in `standards/INDEX.md` as
+`backend/foo.md`). Never indexed: the generated `INDEX.md`/`REGISTRY.md`
+themselves; anything under `archive/`, `drafts/`, `reports/`, `_templates/`,
+`node_modules/`, or a nested `.documentation/`; and the vault's `facts/`,
+`incidents/`, and `symptoms/` subtrees, which have their own generators.
+
+Recursive indexing landed in **2.7.1**. Before that the walk was flat and every
+document in a subfolder was invisible to the whole system — so the first
+`index`/`maintain` run after upgrading will add a row for each one.
+
+**Full contract, and the troubleshooting ladder for "my doc isn't in the index":
+[docs/indexing.md](docs/indexing.md).**
+
 ### File Structure
 
 When you run `hewtd init`, it creates this structure:
@@ -887,7 +907,9 @@ When you run `hewtd init`, it creates this structure:
 ├── security/                 # Security documentation (priority: 9)
 │   ├── INDEX.md             # Security domain table of contents
 │   ├── REGISTRY.md          # Quick reference for security docs
-│   └── *.md                 # Individual security documents
+│   ├── *.md                 # Individual security documents
+│   └── auth/                # Subfolders are indexed too (2.7.1+)
+│       └── *.md             # → listed as auth/<name>.md
 │
 ├── api/                      # API documentation (priority: 8)
 │   ├── INDEX.md

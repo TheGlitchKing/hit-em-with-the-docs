@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { resolve } from 'path';
+import { join, resolve } from 'path';
+import { readFile } from 'fs/promises';
 import { createRequire } from 'node:module';
 import { registerUpdateCommands } from '@theglitchking/claude-plugin-runtime';
 import { logger } from '../utils/logger.js';
@@ -96,6 +97,7 @@ program
     '-d, --domain <domain>',
     'Restrict domain INDEX/REGISTRY writes to one domain (root indexes still refreshed)'
   )
+  .option('--dry-run', 'Preview what would change without writing anything', false)
   .action(async (options) => {
     const docsPath = resolve(process.cwd(), options.path);
 
@@ -109,23 +111,73 @@ program
       domains = [options.domain];
     }
 
-    logger.header('Index Regeneration');
+    logger.header(options.dryRun ? 'Index Regeneration (dry run)' : 'Index Regeneration');
+
+    // Count what each domain's INDEX.md lists TODAY, so a dry run can show the
+    // delta rather than just the new totals. The 2.7.1 recursive walk can add
+    // hundreds of rows on first run; users deserve to see that before it lands.
+    const listedBefore: Record<string, number> = {};
+    if (options.dryRun) {
+      for (const domain of getAllDomains()) {
+        listedBefore[domain] = await countIndexedDocRows(
+          join(docsPath, domain, 'INDEX.md')
+        );
+      }
+    }
 
     const result = await regenerateIndexes({
       docsPath,
       ...(domains ? { domains } : {}),
       silent: true,
+      dryRun: options.dryRun,
     });
 
+    let added = 0;
     for (const domain of getAllDomains()) {
       const count = result.documentCounts[domain] ?? 0;
-      logger.info(`  ${domain.padEnd(16)} ${count} document${count === 1 ? '' : 's'}`);
+      let suffix = '';
+      if (options.dryRun) {
+        const delta = count - (listedBefore[domain] ?? 0);
+        added += Math.max(0, delta);
+        suffix = delta > 0 ? `  (+${delta} not currently listed)` : '';
+      }
+      logger.info(
+        `  ${domain.padEnd(16)} ${count} document${count === 1 ? '' : 's'}${suffix}`
+      );
     }
     logger.newline();
+
+    if (!options.dryRun) {
+      logger.success(
+        `${result.filesWritten.length} index files written · ${result.totalDocuments} documents total`
+      );
+      return;
+    }
+
     logger.success(
-      `${result.filesWritten.length} index files written · ${result.totalDocuments} documents total`
+      `Would write ${result.filesWritten.length} index files · ${result.totalDocuments} documents total`
     );
+    if (added > 0) {
+      logger.info(
+        `${added} document(s) would be added to the indexes. If you are upgrading ` +
+          `to 2.7.1, this is expected and one-time: documents in subfolders were ` +
+          `previously invisible to the indexer. See docs/indexing.md.`
+      );
+    }
+    logger.info('Nothing was written. Re-run without --dry-run to apply.');
   });
+
+/** How many document rows a generated INDEX.md currently lists (0 if absent). */
+async function countIndexedDocRows(indexPath: string): Promise<number> {
+  try {
+    const content = await readFile(indexPath, 'utf-8');
+    return content
+      .split('\n')
+      .filter((line) => /^\|\s*\[[^\]]*\]\([^)]+\.md\)/.test(line)).length;
+  } catch {
+    return 0;
+  }
+}
 
 // Metadata sync command
 program
