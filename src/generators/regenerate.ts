@@ -169,7 +169,24 @@ async function buildDomainEntries(
       continue;
     }
 
-    const { data, content } = parseFrontmatter<Record<string, unknown>>(raw);
+    // A doc with malformed YAML must not take down the whole run. Before the
+    // walk went recursive these files were simply never read; now that they
+    // are, one bad frontmatter block in one nested doc would otherwise abort
+    // `index`/`maintain` for the entire project with a gray-matter stack
+    // trace. Index it anyway — the document exists and should be findable —
+    // with filename-derived defaults, and say so.
+    let data: Record<string, unknown> = {};
+    let content = '';
+    try {
+      ({ data, content } = parseFrontmatter<Record<string, unknown>>(raw));
+    } catch (error) {
+      logger.warn(
+        `Unparseable frontmatter in ${domain}/${fileName} — indexing it with ` +
+          `defaults. Fix the YAML to control how it appears: ` +
+          `${error instanceof Error ? error.message.split('\n')[0] : String(error)}`
+      );
+    }
+
     entries.push({
       path: pathPrefix + fileName,
       title:
