@@ -2,6 +2,87 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.0] — 2026-07-14
+
+Lifecycle enforcement. hewtd's create/update/deprecate/archive policy has
+always been enforced at the **CLI boundary** — the archive link guard, `auto:
+false`, the frontmatter schema. None of that bound an **agent**. Claude working
+in a hewtd-managed repo, with no particular knowledge of hewtd, would happily
+`rm` a stale doc, hand-edit a generated `INDEX.md`, or start its own `docs/`
+folder. The policy lived in the README, and nothing made anyone read it.
+
+Worse, the agent-facing contract *had* been written — `templates/claude/CLAUDE.md`
+stated the whole thing — and was **never installed**. Nothing in the codebase
+referenced it. It shipped in the tarball and sat there.
+
+Three layers now, in descending order of strength. Full reference:
+[`docs/enforcement.md`](docs/enforcement.md).
+
+### Added
+
+- **A `PreToolUse` guard — the part that is actually binding.** Run by the
+  harness rather than the model, so it cannot be reasoned past. It **denies**
+  exactly two things, both destructive: hand-editing a generated
+  `INDEX.md`/`REGISTRY.md` under the docs tree (it is rebuilt from disk; edits
+  are silently discarded — and hand-curated rows are precisely how #12 festered),
+  and `rm`/`git rm`/`shred` of a doc under the docs tree (irreversible, and
+  `hewtd archive` is the reversible alternative — hewtd's own source contains no
+  delete calls anywhere). It **warns**, without blocking, on `status: deprecated`
+  without archiving, on starting a rival `docs/` tree, and on a hand-rolled `mv`
+  into `archive/` that skips the `archived_from` stamp `unarchive` depends on.
+- **Two invariants the guard will not violate.** It runs in *every* session the
+  plugin is installed in, including repos with nothing to do with hewtd — so
+  (1) **no `.documentation/` tree → it allows everything, instantly and
+  silently**, and (2) **any internal error → it allows the call**. It fails open,
+  unconditionally. A guard that blocks unrelated work because it threw is worse
+  than no guard. The warnings are narrow for the same reason: markdown under
+  `src/`, a subpackage `README.md`, a test fixture, a website's own docs — none
+  of them trigger anything. A noisy guard is a guard people switch off.
+- **An `enforcement` config block**, because a guard nobody can disable is a
+  guard people uninstall the plugin to escape:
+  ```json
+  { "enforcement": { "block_index_edits": true, "block_doc_deletion": true } }
+  ```
+  Both default `true`; disabling one leaves the other active.
+- **A `SessionStart` lifecycle brief.** A compact description of how the tree
+  works, injected **only when the project has a `.documentation/` tree**. It
+  writes no files — and deliberately does **not** create or modify `CLAUDE.md`,
+  which is yours and which you almost certainly already have. Phrased as a
+  statement of fact rather than instructions, since imperative injected text can
+  trip Claude's prompt-injection defenses.
+- **A model-invocable skill** (`skills/documentation-lifecycle/`). Claude now
+  reaches for hewtd's commands on its own when asked to write or retire a doc,
+  instead of needing `/hit-em-with-the-docs:help` invoked first. `link-skills.js`
+  previously linked *no* skills (`skillsDir: null` — its own comment said "ships
+  no bundled skills"); it now links this one for npm installs, and plugin
+  installs pick it up from `skills/`.
+
+### Fixed
+
+- **The archive policy is now explicit and uniform: archived content is
+  *referenceable, never concrete*.** Anything under an `archive/` folder — **at
+  any depth** — is excluded from every scan: not indexed, not audited, not
+  link-checked, not metadata-validated, never counted. It is what the docs *used*
+  to say. It stays **referenceable** (link-check validates targets by file
+  existence, so a link from an active doc into the archive still resolves and
+  history stays reachable), but it is never **concrete** — never evidence of how
+  the system behaves today.
+
+  Previously this only half-held. The ignore glob was anchored at the docs root
+  (`archive/**`), so `<docs>/archive/` was skipped while `<docs>/features/archive/`
+  was **still scanned and validated** — even though 2.7.1's indexer correctly
+  ignored it. A nested archived doc could raise audit errors and stale-metadata
+  warnings for content nobody was supposed to be reading. The guard also warns when
+  an agent edits a file under `archive/`: not destructive, merely pointless, since
+  the change lands in a subtree no scan reads and no index lists. Restoring is
+  `hewtd unarchive`, not editing in place.
+
+### Removed
+
+- **`templates/claude/CLAUDE.md`** — the orphaned agent contract, never installed
+  by any command. Its content now lives where it can actually reach an agent: the
+  session brief and the skill.
+
 ## [2.7.1] — 2026-07-13
 
 The indexer walks subfolders. Until now `listDomainDocFiles()` did a flat

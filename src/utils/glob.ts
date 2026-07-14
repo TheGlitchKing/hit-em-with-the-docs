@@ -36,10 +36,21 @@ export async function glob(
 }
 
 /**
- * Reserved documentation subdirectory for DEPRECATED docs. Anything under
- * `<docs>/archive/` is intentionally excluded from every hewtd scan (audit,
- * link-check, metadata-sync, integrate dup-detection, link graph, search) —
- * it's a parking lot for retired docs, not part of the active corpus.
+ * Reserved documentation subdirectory for DEPRECATED docs.
+ *
+ * **Archived content is referenceable, never concrete.** A link *into* the
+ * archive still resolves — link-check validates targets by file existence, so
+ * history stays reachable. But nothing under an `archive/` folder is part of
+ * the active corpus: it is not indexed, not audited, not metadata-validated,
+ * not dup-checked, and never counted. It is what the docs *used* to say, and it
+ * is never evidence of what is true now.
+ *
+ * The exclusion applies at **any depth** — `<docs>/archive/` and
+ * `<docs>/features/archive/` alike. Before 2.8.0 the ignore glob was anchored
+ * at the docs root, so a nested `archive/` was still scanned and validated
+ * (while 2.7.1's indexer correctly skipped it) — archived docs could raise
+ * audit errors and stale-metadata warnings for content nobody was supposed to
+ * be reading.
  */
 export const ARCHIVE_DIR = 'archive';
 
@@ -49,6 +60,7 @@ const DOC_SCAN_IGNORE = [
   'dist/**',
   '.git/**',
   `${ARCHIVE_DIR}/**`,
+  `**/${ARCHIVE_DIR}/**`,
 ];
 
 /**

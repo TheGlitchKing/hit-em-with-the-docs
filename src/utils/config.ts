@@ -98,15 +98,30 @@ const archiveConfigSchema = z
   })
   .default({});
 
+/**
+ * Lifecycle enforcement (2.8.0). Governs the PreToolUse guard, which is what
+ * makes the policy binding on an agent rather than merely documented. Both
+ * rules default ON — but they are opt-out, because a guard nobody can disable
+ * is a guard people uninstall the plugin to escape.
+ */
+const enforcementConfigSchema = z
+  .object({
+    block_index_edits: z.boolean().default(true),
+    block_doc_deletion: z.boolean().default(true),
+  })
+  .default({});
+
 const pluginConfigSchema = z
   .object({
     vault: vaultConfigSchema,
+    enforcement: enforcementConfigSchema,
     domains: lenientDomainsArray,
     archive: archiveConfigSchema,
   })
   .passthrough();
 
 export type VaultConfig = z.infer<typeof vaultConfigSchema>;
+export type EnforcementConfig = z.infer<typeof enforcementConfigSchema>;
 export type ArchiveConfig = z.infer<typeof archiveConfigSchema>;
 export type PluginConfig = z.infer<typeof pluginConfigSchema>;
 
