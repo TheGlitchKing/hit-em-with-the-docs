@@ -80,6 +80,27 @@ read-only, it never moves anything. Nothing is ever auto-archived.
 
 Point a replacement at the old doc with `superseded_by: <path>` in frontmatter.
 
+## Archived content: referenceable, never concrete
+
+**Anything under an `archive/` folder — at any depth — is history, not truth.**
+
+It is excluded from every hewtd scan: not indexed, not audited, not
+link-checked, not metadata-validated, never counted. Links *into* it still
+resolve, so history stays reachable and you may cite it as "what we used to do."
+
+What it is **not** is evidence of how the system works now. Never quote an
+archived doc as current behavior, never carry its claims into a new doc, and
+never treat a `status:`/`version:` inside it as live. If it turns out an archived
+doc is still correct and still needed, it should be restored, not read in place:
+
+```bash
+hewtd unarchive .documentation/archive/api/old-guide.md
+```
+
+Editing a file under `archive/` is not destructive, but it is almost always a
+mistake — the edit lands in a subtree nothing reads, so it changes nothing anyone
+will see. The guard warns when you try.
+
 ## Checking the tree
 
 ```bash

@@ -36,6 +36,7 @@ How the tree works:
 - New docs are registered with \`hewtd integrate <file>\`, which classifies them into a domain and adds the frontmatter. Markdown created outside \`.documentation/\` is not indexed, link-checked, or validated.
 - Docs are **never deleted**. \`hewtd archive <file>\` retires one: it moves the file under \`archive/\` (keeping git history), stamps \`archived_from\` so \`hewtd unarchive\` restores it exactly, and refuses if active docs still link to it. hewtd's own source contains no delete calls anywhere.
 - \`status: deprecated\` flags intent but leaves a doc live and indexed; \`hewtd archive\` is the step that actually retires it.
+- **Anything under an \`archive/\` folder is historical, at any depth.** It is excluded from every scan — not indexed, not audited, not link-checked, not validated. It can be *referenced* (links into it still resolve), but it is **never evidence of current behavior**: it is what the docs used to say. Do not cite it as how the system works today, and do not edit it. \`hewtd unarchive <file>\` restores it to active first.
 - \`hewtd maintain\` regenerates indexes, syncs metadata, and checks links. \`hewtd audit\` reports drift and policy violations.
 
 A PreToolUse hook enforces the two destructive cases: editing a generated index, and deleting a doc under \`.documentation/\`. Both are denied. Run \`/hit-em-with-the-docs:help\` for the full command surface.`;

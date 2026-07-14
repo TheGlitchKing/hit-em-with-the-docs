@@ -80,6 +80,36 @@ describe('guard — warns without blocking', () => {
   });
 });
 
+describe('guard — archived content is referenceable, never concrete', () => {
+  it('warns when editing an archived doc, at any depth', () => {
+    for (const f of [
+      '.documentation/archive/api/old.md',
+      '.documentation/features/archive/retired.md',
+    ]) {
+      const d = ev({ toolName: 'Edit', filePath: f });
+      expect(d.action, f).toBe('warn');
+      expect(d.action === 'warn' && d.context).toMatch(/historical/i);
+      expect(d.action === 'warn' && d.context).toMatch(/unarchive/);
+    }
+  });
+
+  it('warns rather than denies — editing history is pointless, not destructive', () => {
+    const d = ev({ toolName: 'Write', filePath: '.documentation/archive/api/old.md' });
+    expect(d.action).not.toBe('deny');
+  });
+
+  it('still denies DELETING an archived doc', () => {
+    // Archived ≠ disposable. The archive is the thing that makes retirement
+    // reversible; deleting out of it throws away the history it exists to hold.
+    const d = ev({ toolName: 'Bash', command: 'rm .documentation/archive/api/old.md' });
+    expect(d.action).toBe('deny');
+  });
+
+  it("does not claim an archive/ folder outside the docs tree", () => {
+    expect(ev({ toolName: 'Write', filePath: 'src/archive/notes.md' }).action).toBe('allow');
+  });
+});
+
 describe('guard — does not over-fire', () => {
   it('allows editing an ordinary document', () => {
     expect(ev({ toolName: 'Edit', filePath: '.documentation/api/guide.md' }).action).toBe('allow');

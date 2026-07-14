@@ -33,6 +33,28 @@ It **warns** (allows the call, and tells the model why) on:
   markdown outside `.documentation/` is not indexed, link-checked, or validated.
 - `mv`-ing a doc into `archive/` by hand — it skips the `archived_from` stamp,
   so `hewtd unarchive` has nothing to restore from.
+- **Editing a doc under an `archive/` folder** — archived content is historical
+  (see below). Editing it is not destructive, merely pointless: the change lands
+  in a subtree that no scan reads and no index lists.
+
+## The archive policy: referenceable, never concrete
+
+**Anything under an `archive/` folder, at any depth, is excluded from every hewtd
+scan** — not indexed, not audited, not link-checked, not metadata-validated,
+never counted. It is what the docs *used* to say.
+
+It remains **referenceable**: link-check validates targets by file existence, so
+a link from an active doc into the archive still resolves and history stays
+reachable. What it is never is **concrete** — it is not evidence of how the system
+behaves today, and neither an agent nor a human should cite it as current. If an
+archived doc turns out to still be right and still be needed, the answer is
+`hewtd unarchive`, not reading it in place.
+
+Before 2.8.0 this only half-held. The ignore glob was anchored at the docs root
+(`archive/**`), so `<docs>/archive/` was skipped but `<docs>/features/archive/`
+was **still scanned and validated** — while 2.7.1's indexer correctly ignored it.
+Retired docs could raise audit errors and stale-metadata warnings for content
+nobody was supposed to be reading. The exclusion is now uniform at any depth.
 
 ### Two invariants it will not violate
 

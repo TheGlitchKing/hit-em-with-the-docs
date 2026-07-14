@@ -57,6 +57,26 @@ Three layers now, in descending order of strength. Full reference:
   no bundled skills"); it now links this one for npm installs, and plugin
   installs pick it up from `skills/`.
 
+### Fixed
+
+- **The archive policy is now explicit and uniform: archived content is
+  *referenceable, never concrete*.** Anything under an `archive/` folder — **at
+  any depth** — is excluded from every scan: not indexed, not audited, not
+  link-checked, not metadata-validated, never counted. It is what the docs *used*
+  to say. It stays **referenceable** (link-check validates targets by file
+  existence, so a link from an active doc into the archive still resolves and
+  history stays reachable), but it is never **concrete** — never evidence of how
+  the system behaves today.
+
+  Previously this only half-held. The ignore glob was anchored at the docs root
+  (`archive/**`), so `<docs>/archive/` was skipped while `<docs>/features/archive/`
+  was **still scanned and validated** — even though 2.7.1's indexer correctly
+  ignored it. A nested archived doc could raise audit errors and stale-metadata
+  warnings for content nobody was supposed to be reading. The guard also warns when
+  an agent edits a file under `archive/`: not destructive, merely pointless, since
+  the change lands in a subtree no scan reads and no index lists. Restoring is
+  `hewtd unarchive`, not editing in place.
+
 ### Removed
 
 - **`templates/claude/CLAUDE.md`** — the orphaned agent contract, never installed

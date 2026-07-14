@@ -52,6 +52,19 @@ function normalize(p: string): string {
   return p.replace(/\\/g, '/').replace(/^\.\//, '');
 }
 
+/**
+ * Is this path inside an `archive/` folder, at any depth?
+ *
+ * Archived docs are **referenceable but never concrete** — history you may cite,
+ * never evidence of what is true now. Nothing under an `archive/` folder is
+ * indexed, audited, link-checked, or validated.
+ */
+export function isArchived(path: string): boolean {
+  return normalize(path)
+    .split('/')
+    .some((segment) => segment === 'archive');
+}
+
 /** Is this path inside the documentation tree? */
 function inDocsTree(path: string, docsDir: string): boolean {
   const p = normalize(path);
@@ -119,6 +132,23 @@ export function evaluate(
           `\`${docsDir}/\`. A markdown file outside that tree is not indexed, ` +
           `link-checked, or metadata-validated. \`hewtd integrate <file>\` classifies ` +
           `a doc into a domain and registers it.`,
+      };
+    }
+
+    // WARN: archived content is historical. Editing it is not destructive —
+    // hence a warn, not a denial — but it is almost always a mistake: the edit
+    // lands in a subtree that no scan reads and no index lists, so it changes
+    // nothing anyone will see.
+    if (inTree && isArchived(filePath)) {
+      return {
+        action: 'warn',
+        context:
+          `This file is under an \`archive/\` folder. Archived documentation is ` +
+          `historical: it is excluded from every hewtd scan — not indexed, not ` +
+          `audited, not link-checked, not validated — and describes what the docs ` +
+          `used to say, not what is true now. It can be referenced, but it is never ` +
+          `evidence of current behavior. \`hewtd unarchive <file>\` restores it to ` +
+          `its domain as an active document.`,
       };
     }
 
