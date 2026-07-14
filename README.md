@@ -874,6 +874,23 @@ src/
     └── logger.ts            # Logging and output formatting
 ```
 
+### Lifecycle enforcement (2.8.0+)
+
+hewtd's policy is now **binding on an agent**, not merely documented. A
+`PreToolUse` hook — run by the harness, not the model — **denies** the two
+destructive violations: hand-editing a generated `INDEX.md`/`REGISTRY.md` (it is
+rebuilt from disk; edits are discarded) and `rm`-ing a doc under
+`.documentation/` (use `hewtd archive` — reversible and link-safe). It **warns**,
+without blocking, on `status: deprecated` without archiving and on starting a
+rival `docs/` folder.
+
+It **fails open**: no `.documentation/` tree, or any internal error, and it allows
+everything silently. Both rules are opt-out via an `enforcement` block in
+`.claude/hit-em-with-the-docs.json`. A `SessionStart` brief and a model-invocable
+skill round it out — no `CLAUDE.md` is written or modified.
+
+**Full reference: [docs/enforcement.md](docs/enforcement.md).**
+
 ### Indexing: what counts as a document
 
 `INDEX.md` and `REGISTRY.md` are **generated** — `index`, `maintain`, and

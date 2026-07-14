@@ -1,6 +1,6 @@
 {
   "name": "@theglitchking/hit-em-with-the-docs",
-  "version": "2.7.1",
+  "version": "2.8.0",
   "description": "Self-managing documentation system with hierarchical structure, intelligent automation, pattern discovery, and agent orchestration",
   "type": "module",
   "main": "dist/cli/index.js",
@@ -24,6 +24,7 @@
     "dist",
     "templates",
     ".claude-plugin",
+    "skills",
     "commands",
     "hooks",
     "scripts/link-skills.js",

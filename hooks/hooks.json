@@ -1,5 +1,5 @@
 {
-  "description": "hit-em-with-the-docs SessionStart hook — nudges/auto-updates per policy.",
+  "description": "hit-em-with-the-docs hooks — SessionStart (update check + lifecycle brief) and PreToolUse (lifecycle enforcement).",
   "hooks": {
     "SessionStart": [
       {
@@ -7,6 +7,21 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-brief.js\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.js\""
           }
         ]
       }

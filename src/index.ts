@@ -51,6 +51,9 @@ export * from './core/archive/manage.js';
 export * from './core/archive/candidates.js';
 export * from './core/archive/links.js';
 
+// Lifecycle enforcement (2.8.0+)
+export * from './core/enforce/guard.js';
+
 // Knowledge-base primitives (2.3.0+)
 export * from './core/metadata/errors.js';
 export * from './core/knowledge-base/citers.js';
