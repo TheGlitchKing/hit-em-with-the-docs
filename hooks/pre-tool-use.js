@@ -73,6 +73,24 @@ async function main() {
   // I/O shell and the rules themselves are unit-testable.
   const { evaluate } = await import('../dist/core/enforce/guard.js');
 
+  // The active domain ids decide which INDEX.md files hewtd actually generates.
+  // Reading them is I/O (the registry merges built-ins with this project's config),
+  // which is why the guard takes them as input rather than importing the registry:
+  // guard.ts stays pure and unit-testable. If this fails for any reason the guard
+  // falls back to "one segment below the docs root", which is right for every
+  // single-segment domain id.
+  let domains;
+  try {
+    const registry = await import('../dist/core/domains/registry.js');
+    // Seed the lazy registry with THIS project's root: the hook's cwd comes from the
+    // payload and is not necessarily process.cwd(), which is what getRegistry()
+    // defaults to. Getting that wrong would read another project's custom domains.
+    registry.getRegistry(cwd);
+    domains = registry.getAllDomains();
+  } catch {
+    domains = undefined;
+  }
+
   const toolInput = payload.tool_input ?? {};
   const decision = evaluate(
     {
@@ -81,6 +99,7 @@ async function main() {
       command: toolInput.command,
       text: toolInput.content ?? toolInput.new_string,
       docsDir,
+      domains,
     },
     policy
   );

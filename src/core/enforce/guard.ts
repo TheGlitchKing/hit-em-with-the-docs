@@ -16,7 +16,8 @@
 
 import { basename } from 'path';
 
-/** Files hewtd generates and owns. Hand-editing them is always wrong. */
+/** Basenames hewtd uses for the files it generates. NOT sufficient on its own — see
+ *  `isGeneratedIndex`, which also has to decide whether hewtd writes THIS one. */
 const GENERATED_FILES = new Set(['INDEX.md', 'REGISTRY.md']);
 
 export type GuardDecision =
@@ -34,6 +35,16 @@ export interface GuardInput {
   text?: string;
   /** Docs root relative to the project, e.g. `.documentation`. */
   docsDir: string;
+  /**
+   * Active domain ids (`getAllDomains()`), supplied by the hook because reading
+   * them is I/O and this function is pure.
+   *
+   * Optional: when absent the rule falls back to "one path segment below the docs
+   * root", which is correct for every single-segment domain id — i.e. all of the
+   * built-ins. Passing the real list additionally handles a custom domain whose id
+   * contains a slash.
+   */
+  domains?: readonly string[];
 }
 
 /** Which enforcement rules are active. Both default on; users can opt out. */
@@ -92,13 +103,59 @@ function setsDeprecated(text: string): boolean {
 }
 
 /**
+ * The path of `filePath` relative to the docs root, or null if it is outside.
+ * Mirrors `inDocsTree`, which accepts a repo-relative or an absolute path.
+ */
+function relativeToDocs(path: string, docsDir: string): string | null {
+  const p = normalize(path);
+  const d = normalize(docsDir);
+  if (p.startsWith(`${d}/`)) return p.slice(d.length + 1);
+  const marker = p.indexOf(`/${d}/`);
+  if (marker !== -1) return p.slice(marker + d.length + 2);
+  return null;
+}
+
+/**
+ * Does hewtd actually generate this file?
+ *
+ * The name alone does NOT answer that, and assuming it did was a real defect: the
+ * guard denied every `INDEX.md` under the docs tree, including the hand-written
+ * sub-feature indexes hewtd has never written. Those pages became uneditable —
+ * frozen with whatever staleness they carried, since the deny is final and the
+ * "run `hewtd index`" advice it offered did nothing to them.
+ *
+ * hewtd writes exactly two shapes (`core/maintain/orchestrator.ts` builds every
+ * path as `join(docsPath, domain)`):
+ *
+ *     <docs>/INDEX.md            <docs>/REGISTRY.md
+ *     <docs>/<domain>/INDEX.md   <docs>/<domain>/REGISTRY.md
+ *
+ * Anything deeper — `<docs>/features/tiers/INDEX.md` — is prose that merely shares
+ * the name, and is the author's to edit.
+ */
+function isGeneratedIndex(
+  filePath: string,
+  docsDir: string,
+  domains?: readonly string[]
+): boolean {
+  if (!GENERATED_FILES.has(basename(filePath))) return false;
+
+  const rel = relativeToDocs(filePath, docsDir);
+  if (rel === null) return false;
+
+  const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+  if (dir === '') return true; // <docs>/INDEX.md — the root index
+  return domains ? domains.includes(dir) : !dir.includes('/');
+}
+
+/**
  * Decide what to do about one tool call. Pure — all I/O lives in the hook.
  */
 export function evaluate(
   input: GuardInput,
   policy: EnforcementPolicy = DEFAULT_ENFORCEMENT
 ): GuardDecision {
-  const { toolName, filePath, command, text, docsDir } = input;
+  const { toolName, filePath, command, text, docsDir, domains } = input;
 
   // ---- Write / Edit -------------------------------------------------------
   if ((toolName === 'Write' || toolName === 'Edit') && filePath) {
@@ -108,7 +165,7 @@ export function evaluate(
     // pointless (the next `hewtd index` overwrites it) or actively harmful
     // (it is how people ended up hand-curating rows the indexer then deleted
     // — see issue #12).
-    if (policy.blockIndexEdits && inTree && GENERATED_FILES.has(basename(filePath))) {
+    if (policy.blockIndexEdits && inTree && isGeneratedIndex(filePath, docsDir, domains)) {
       return {
         action: 'deny',
         reason:
