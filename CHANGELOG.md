@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.1] — 2026-07-22
+
+Bugfix. The PreToolUse guard denied every `INDEX.md` / `REGISTRY.md` under the
+docs tree, matched on **basename alone** — nothing checked whether hewtd writes
+that particular file. It does not write most of them.
+
+hewtd generates exactly two shapes (`core/maintain/orchestrator.ts` joins the
+docs path with a single domain segment):
+
+```
+<docs>/INDEX.md            <docs>/REGISTRY.md
+<docs>/<domain>/INDEX.md   <docs>/<domain>/REGISTRY.md
+```
+
+Anything deeper is hand-written prose that merely shares the name — and it was
+**uneditable**. The deny is final, and the advice it offered ("change the
+documents, then run `hewtd index`") does nothing to a file the indexer has never
+touched. Those pages froze with whatever staleness they carried.
+
+Measured in one repo: **11 of 35** `INDEX.md` files sat one level below a domain.
+`hewtd index` reported "48 index files written" and left all 11 byte-identical.
+One of them was a pricing table naming a price the product does not charge, on
+the first page a reader opens in that domain.
+
+The only escape was `enforcement.block_index_edits: false` — global, so it would
+have unprotected the 24 genuinely generated files to unblock the 11.
+
+`isGeneratedIndex()` now checks the path, not just the name. The active domain
+ids are passed into `evaluate()` via `GuardInput` rather than imported, keeping
+`guard.ts` pure; the hook supplies them and seeds the registry with the payload's
+`cwd` (`getRegistry()` defaults to `process.cwd()`, which is not necessarily the
+project being edited). Absent a list, the rule falls back to "one segment below
+the docs root" — correct for every single-segment domain id.
+
 ## [2.8.0] — 2026-07-14
 
 Lifecycle enforcement. hewtd's create/update/deprecate/archive policy has
