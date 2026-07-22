@@ -13,6 +13,57 @@ const docsDir = '.documentation';
 const ev = (input: Parameters<typeof evaluate>[0], policy = DEFAULT_ENFORCEMENT) =>
   evaluate({ docsDir, ...input }, policy);
 
+describe('guard — only denies indexes hewtd actually generates', () => {
+  // hewtd writes `<docs>/INDEX.md` and `<docs>/<domain>/INDEX.md` and nothing else
+  // (core/maintain/orchestrator.ts joins docsPath with a single domain segment).
+  // Denying by basename alone froze every hand-written sub-feature index: the deny is
+  // final, and the "run `hewtd index`" advice it offered does nothing to those files.
+
+  it('denies the root and domain-level indexes', () => {
+    for (const f of [
+      '.documentation/INDEX.md',
+      '.documentation/REGISTRY.md',
+      '.documentation/api/INDEX.md',
+      '.documentation/knowledge-base/REGISTRY.md',
+    ]) {
+      expect(ev({ toolName: 'Edit', filePath: f }).action).toBe('deny');
+    }
+  });
+
+  it('allows a hand-written index below domain level', () => {
+    // These are prose that merely share the name. hewtd has never written one:
+    // `hewtd index` leaves them byte-identical.
+    for (const f of [
+      '.documentation/features/tiers/INDEX.md',
+      '.documentation/knowledge-base/symptoms/INDEX.md',
+      '.documentation/standards/testing/INDEX.md',
+      '.documentation/agents/diane/INDEX.md',
+    ]) {
+      expect(ev({ toolName: 'Edit', filePath: f }).action).toBe('allow');
+    }
+  });
+
+  it('uses the supplied domain list, so a slash-containing custom domain still denies', () => {
+    const filePath = '.documentation/features/tiers/INDEX.md';
+    // Default (no list): one segment below the root is generated, deeper is not.
+    expect(ev({ toolName: 'Edit', filePath }).action).toBe('allow');
+    // Declared as a domain by this project => hewtd does generate it => deny.
+    expect(
+      evaluate({ docsDir, toolName: 'Edit', filePath, domains: ['features/tiers'] }).action
+    ).toBe('deny');
+  });
+
+  it('applies to absolute paths too', () => {
+    expect(
+      ev({ toolName: 'Edit', filePath: '/home/u/proj/.documentation/api/INDEX.md' }).action
+    ).toBe('deny');
+    expect(
+      ev({ toolName: 'Edit', filePath: '/home/u/proj/.documentation/features/tiers/INDEX.md' })
+        .action
+    ).toBe('allow');
+  });
+});
+
 describe('guard — denies the destructive cases', () => {
   it('denies editing a generated INDEX.md', () => {
     const d = ev({ toolName: 'Edit', filePath: '.documentation/api/INDEX.md' });
@@ -21,11 +72,11 @@ describe('guard — denies the destructive cases', () => {
     expect(d.action === 'deny' && d.reason).toMatch(/hewtd index/);
   });
 
-  it('denies writing a generated REGISTRY.md, at the root or nested', () => {
+  it('denies writing a generated REGISTRY.md, at the root and at domain level', () => {
     expect(ev({ toolName: 'Write', filePath: '.documentation/REGISTRY.md' }).action).toBe('deny');
-    expect(
-      ev({ toolName: 'Write', filePath: '.documentation/standards/backend/INDEX.md' }).action
-    ).toBe('deny');
+    expect(ev({ toolName: 'Write', filePath: '.documentation/standards/REGISTRY.md' }).action).toBe(
+      'deny'
+    );
   });
 
   it('denies rm of a doc under the docs tree, and names the archive alternative', () => {
