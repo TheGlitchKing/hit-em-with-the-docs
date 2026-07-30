@@ -18,19 +18,66 @@ export interface MarkdownHeading {
   lineNumber: number;
 }
 
+interface FenceState {
+  marker: '`' | '~';
+  length: number;
+}
+
+function blankCodeSpans(line: string): string {
+  return line.replace(/(`+)(.+?)\1/g, (match) => ' '.repeat(match.length));
+}
+
+function getFenceMarker(line: string): FenceState | null {
+  const match = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const marker = match[1][0];
+  if (marker !== '`' && marker !== '~') {
+    return null;
+  }
+
+  return { marker, length: match[1].length };
+}
+
+function closesFence(line: string, fence: FenceState): boolean {
+  const pattern = new RegExp(`^\\s{0,3}\\${fence.marker}{${fence.length},}\\s*$`);
+  return pattern.test(line);
+}
+
 /**
  * Extract all links from markdown content
  */
 export function extractLinks(content: string): MarkdownLink[] {
   const links: MarkdownLink[] = [];
   const lines = content.split('\n');
+  let fence: FenceState | null = null;
 
   // Match markdown links: [text](url) or [text](url "title")
   const linkRegex = /\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g;
 
   lines.forEach((line, lineIndex) => {
+    if (fence) {
+      if (closesFence(line, fence)) {
+        fence = null;
+      }
+      return;
+    }
+
+    const openingFence = getFenceMarker(line);
+    if (openingFence) {
+      fence = openingFence;
+      return;
+    }
+
+    if (line.startsWith('    ') || line.startsWith('\t')) {
+      return;
+    }
+
+    const searchableLine = blankCodeSpans(line);
     let match: RegExpExecArray | null;
-    while ((match = linkRegex.exec(line)) !== null) {
+    while ((match = linkRegex.exec(searchableLine)) !== null) {
       const [fullMatch, text, url, title] = match;
       const urlStr = url ?? '';
       const isInternal = !urlStr.startsWith('http://') &&

@@ -52,6 +52,59 @@ Line 4`;
       expect(links[0]?.text).toBe('My Link Text');
       expect(links[0]?.url).toBe('./path/to/doc.md');
     });
+
+    it('should ignore links inside fenced code blocks', () => {
+      const content = [
+        '```markdown',
+        '![Screenshot](../assets/missing.png)',
+        '```',
+        '[real](./real.md)',
+      ].join('\n');
+
+      const links = extractLinks(content);
+
+      expect(links).toHaveLength(1);
+      expect(links[0]?.url).toBe('./real.md');
+      expect(links[0]?.lineNumber).toBe(4);
+    });
+
+    it('should ignore links inside inline code spans while preserving real link indexes', () => {
+      const content = 'Use `[text](./example.md)` syntax before [real](./real.md).';
+
+      const links = extractLinks(content);
+
+      expect(links).toHaveLength(1);
+      expect(links[0]?.url).toBe('./real.md');
+      expect(links[0]?.startIndex).toBe(content.indexOf('[real]'));
+      expect(links[0]?.endIndex).toBe(content.indexOf('[real]') + '[real](./real.md)'.length);
+    });
+
+    it('should ignore links inside indented code blocks', () => {
+      const content = '    [example](./missing.md)\n[real](./real.md)';
+
+      const links = extractLinks(content);
+
+      expect(links).toHaveLength(1);
+      expect(links[0]?.url).toBe('./real.md');
+      expect(links[0]?.lineNumber).toBe(2);
+    });
+
+    it('should respect the opening fence length', () => {
+      const content = [
+        '````markdown',
+        '```',
+        '[example](./missing.md)',
+        '```',
+        '````',
+        '[real](./real.md)',
+      ].join('\n');
+
+      const links = extractLinks(content);
+
+      expect(links).toHaveLength(1);
+      expect(links[0]?.url).toBe('./real.md');
+      expect(links[0]?.lineNumber).toBe(6);
+    });
   });
 
   describe('extractInternalLinks', () => {
