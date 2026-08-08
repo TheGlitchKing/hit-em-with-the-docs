@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolve } from 'path';
+import { join, resolve } from 'path';
 import { buildCiterIndex } from '../../../src/core/knowledge-base/citers.js';
 import { renderFactsIndex } from '../../../src/generators/facts-index.js';
 import { renderIncidentsIndex } from '../../../src/generators/incidents-index.js';
@@ -119,6 +119,26 @@ describe('renderSymptomsIndex (2.3.0)', () => {
     // Valid fixture has an alert_name and a user_phrase block.
     expect(out).toContain('## Alert names');
     expect(out).toContain('## User phrases');
+  });
+
+  // #23: the href must resolve from the index's OWN directory. `playbookRelPath` is
+  // relative to projectRoot, and the index is written to <vaultRoot>/symptoms/, so using it
+  // as the href produced <vaultRoot>/symptoms/<projectRelPath> — broken for every playbook.
+  it('makes playbook hrefs relative to the symptoms dir, not the project root', async () => {
+    const index = await buildIndex();
+    const symptomsDir = join(VALID_FIXTURE_ROOT, 'symptoms');
+    const out = renderSymptomsIndex(index, symptomsDir);
+
+    // Label stays project-relative; href climbs out of symptoms/ first.
+    expect(out).toMatch(/\]\(\.\.\//);
+    // No href may start with the project-relative path, which is what the bug emitted.
+    expect(out).not.toMatch(/\]\((?!\.\.\/|https?:|#)/);
+  });
+
+  it('falls back to the project-relative href when no symptoms dir is given', async () => {
+    // Back-compat: the parameter is optional, so existing callers keep prior behaviour.
+    const index = await buildIndex();
+    expect(renderSymptomsIndex(index)).toBe(renderSymptomsIndex(index, undefined));
   });
 
   it('emits "no symptoms" message when index has no citers', async () => {
