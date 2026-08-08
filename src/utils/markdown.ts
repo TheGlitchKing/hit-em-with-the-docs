@@ -28,7 +28,32 @@ export function extractLinks(content: string): MarkdownLink[] {
   // Match markdown links: [text](url) or [text](url "title")
   const linkRegex = /\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g;
 
-  lines.forEach((line, lineIndex) => {
+  // Link-shaped text inside a fenced block or a code span is an EXAMPLE, not a link.
+  // Reporting it as broken trains people to ignore the broken-link count. Both are blanked
+  // with spaces rather than removed, so `startIndex` and `lineNumber` stay accurate for
+  // every real link on the same line.
+  let inFence = false;
+  let fenceMarker = '';
+
+  lines.forEach((rawLine, lineIndex) => {
+    const fence = /^\s*(`{3,}|~{3,})/.exec(rawLine);
+    if (fence) {
+      const marker = fence[1] ?? '';
+      if (!inFence) {
+        inFence = true;
+        fenceMarker = marker[0] ?? '`';
+      } else if (marker[0] === fenceMarker) {
+        inFence = false;
+        fenceMarker = '';
+      }
+      return; // the fence delimiter line itself holds no links
+    }
+    if (inFence) return;
+
+    // Blank out inline code spans (`...`, ``...``), preserving offsets.
+    const line = rawLine.replace(/(`+)(?:(?!\1)[\s\S])*?\1/g, (m) => ' '.repeat(m.length));
+
+    linkRegex.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = linkRegex.exec(line)) !== null) {
       const [fullMatch, text, url, title] = match;

@@ -140,6 +140,21 @@ export async function runMaintenance(options: MaintainOptions): Promise<Maintain
     result.errors.push(`Index regeneration failed: ${message}`);
   }
 
+  // Step 1.6: Knowledge-base indexes (2.3.0+) — only when a vault root exists.
+  // Backward-compat hard requirement: a project with no knowledge-base/ subtree must
+  // observe zero behavior change vs. 2.2.0.
+  //
+  // MUST run BEFORE the link check. This used to be "Step 3.5", after it, so the checker
+  // read the PREVIOUS run's symptoms/INDEX.md: two consecutive `maintain` runs on identical
+  // inputs reported different broken-link counts, and a generator fix appeared not to work
+  // until you ran maintain twice. Generated output has to exist before anything validates it.
+  try {
+    await maybeGenerateKbIndexes(docsPath, silent, result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    result.errors.push(`Knowledge-base index generation failed: ${message}`);
+  }
+
   // Step 2: Link Check (skip in quick mode)
   if (!quick) {
     if (!silent) {
@@ -172,16 +187,6 @@ export async function runMaintenance(options: MaintainOptions): Promise<Maintain
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     result.errors.push(`Audit failed: ${message}`);
-  }
-
-  // Step 3.5: Knowledge-base indexes (2.3.0+) — only when a vault root
-  // exists. Backward-compat hard requirement: a project with no
-  // knowledge-base/ subtree must observe zero behavior change vs. 2.2.0.
-  try {
-    await maybeGenerateKbIndexes(docsPath, silent, result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    result.errors.push(`Knowledge-base index generation failed: ${message}`);
   }
 
   // Calculate overall health score

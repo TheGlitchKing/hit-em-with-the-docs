@@ -12,7 +12,7 @@
  */
 
 import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { join, relative, sep } from 'path';
 import type { CiterIndex, PlaybookCitation } from '../core/knowledge-base/citers.js';
 import { formatMarkdownTable } from './table.js';
 
@@ -26,6 +26,8 @@ interface FlatSymptom {
   /** The key string used for sorting/grouping. For user_phrase arrays we expand to one row per phrase. */
   key: string;
   playbookRelPath: string;
+  /** Absolute path to the playbook, so the href can be made relative to THIS index. */
+  playbookAbsPath: string;
   target: string;
   severity: string | undefined;
   cites: string[];
@@ -39,12 +41,18 @@ export async function generateSymptomsIndex(
   await mkdir(symptomsDir, { recursive: true });
   const indexPath = join(symptomsDir, 'INDEX.md');
 
-  const content = renderSymptomsIndex(index);
+  const content = renderSymptomsIndex(index, symptomsDir);
   await writeFile(indexPath, content, 'utf-8');
   return indexPath;
 }
 
-export function renderSymptomsIndex(index: CiterIndex): string {
+/**
+ * @param symptomsDir Absolute path to the directory this index is written into. Supplied so
+ *   playbook hrefs can be made relative to it. Optional for back-compat: without it the
+ *   project-relative path is used as the href, which is only correct when the index sits at
+ *   the project root.
+ */
+export function renderSymptomsIndex(index: CiterIndex, symptomsDir?: string): string {
   const flat = flattenSymptoms(index);
 
   const lines: string[] = [];
@@ -93,7 +101,12 @@ export function renderSymptomsIndex(index: CiterIndex): string {
 
     const rows = subset.map((s) => [
       `\`${escapeMd(s.key)}\``,
-      `[${s.playbookRelPath}](${s.playbookRelPath}${s.target})`,
+      // The LABEL stays project-relative (a stable, readable identifier), but the HREF
+      // must be relative to this index's own directory. `playbookRelPath` is
+      // `relative(projectRoot, ...)`, and this file lives at <vaultRoot>/symptoms/, so
+      // using it as the href resolved to <vaultRoot>/symptoms/<projectRelPath> and every
+      // generated link was broken. Windows: normalise `\` to `/` for markdown.
+      `[${s.playbookRelPath}](${hrefFor(s, symptomsDir)}${s.target})`,
       s.severity ?? '—',
       s.cites.map((c) => `\`${c}\``).join(', '),
     ]);
@@ -127,6 +140,7 @@ function flattenSymptoms(index: CiterIndex): FlatSymptom[] {
             kind: c.kind,
             key: k,
             playbookRelPath: c.relPath,
+            playbookAbsPath: c.path,
             target: c.target,
             severity: c.severity,
             cites: [factId],
@@ -139,6 +153,12 @@ function flattenSymptoms(index: CiterIndex): FlatSymptom[] {
   // Sort each row's cites for determinism.
   for (const row of coalesced.values()) row.cites.sort();
   return [...coalesced.values()];
+}
+
+/** Href relative to the index's own directory; falls back to the project-relative path. */
+function hrefFor(s: FlatSymptom, symptomsDir?: string): string {
+  if (!symptomsDir) return s.playbookRelPath;
+  return relative(symptomsDir, s.playbookAbsPath).split(sep).join('/');
 }
 
 function humanizeKind(kind: PlaybookCitation['kind']): string {
