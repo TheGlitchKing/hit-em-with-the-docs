@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.2] — 2026-08-08
+
+Bugfix. Three defects that all inflated the broken-link count on documentation
+that was **correct** — which is the real cost, because a number that is wrong in
+the safe direction trains people to stop reading it.
+
+**`symptoms/INDEX.md` links were project-root-relative.** The generator emitted
+`[relPath](relPath + anchor)` where `relPath` is `relative(projectRoot, ...)`,
+while writing the file into `<vaultRoot>/symptoms/`. Every href therefore
+resolved against *that* directory:
+
+```
+emitted : .documentation/devops/grafana-alerts-runbook.md
+resolves: .documentation/knowledge-base/symptoms/.documentation/devops/...   broken
+correct : ../../devops/grafana-alerts-runbook.md
+```
+
+Broken by construction, on a file `maintain` had just written. The label stays
+project-relative — it is a stable identifier in the table — and only the href is
+computed against the index's own directory. `renderSymptomsIndex(index,
+symptomsDir?)` keeps the new argument **optional**, so existing callers are
+unaffected.
+
+**`extractLinks()` reported links inside code as broken.** A bare regex ran
+line-by-line with no fence or code-span awareness, so `[text](./path.md)` shown
+as an *example* was counted. Documentation was penalised for being
+documentation. Fenced blocks (``` and `~~~`, any run length) are skipped, and
+inline code spans are blanked **with spaces rather than removed**, so
+`startIndex` / `endIndex` / `lineNumber` stay correct for a real link sharing a
+line with a span.
+
+**`maintain` validated generated output before generating it.** Knowledge-base
+index generation ran after the link check, so the checker read the *previous*
+run's `symptoms/INDEX.md`. Two consecutive runs on identical inputs reported
+different counts, and a generator fix appeared not to work until you ran
+`maintain` twice. Moved to Step 1.6, beside the domain-index regeneration it
+belongs with.
+
+Measured on a 644-file consumer tree: **34 broken links → 0**, and from a
+deliberately stale index, one run now reports 0 where it previously reported 19.
+
+Closes #20, #23.
+
 ## [2.8.1] — 2026-07-22
 
 Bugfix. The PreToolUse guard denied every `INDEX.md` / `REGISTRY.md` under the
