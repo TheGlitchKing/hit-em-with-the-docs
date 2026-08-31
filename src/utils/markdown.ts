@@ -135,7 +135,7 @@ export function countWords(content: string): number {
   text = text.replace(/`[^`]+`/g, '');
 
   // Remove markdown syntax
-  text = text.replace(/[#*_~\[\]()]/g, ' ');
+  text = text.replace(/[#*_~[\]()]/g, ' ');
 
   // Count words
   const words = text.split(/\s+/).filter((word) => word.length > 0);
