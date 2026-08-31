@@ -84,17 +84,135 @@ function inDocsTree(path: string, docsDir: string): boolean {
 }
 
 /**
- * Shell commands that destroy a file. `mv` is deliberately absent: moving a
- * doc is how `archive` itself works (via `git mv`), and a hand-rolled move is
- * a warn, not a denial — it loses the frontmatter stamping, but loses nothing.
+ * Commands that destroy a file. `mv` is deliberately absent: moving a doc is how
+ * `archive` itself works (via `git mv`), and a hand-rolled move is a warn, not a
+ * denial — it loses the frontmatter stamping, but loses nothing.
  */
-const DESTRUCTIVE_RE = /(^|[\s;&|(])(rm|unlink|shred)\s|(^|[\s;&|(])git\s+rm\s/;
+const DESTRUCTIVE_WORDS = new Set(['rm', 'unlink', 'shred']);
 
-/** Markdown paths a shell command names. */
-function markdownTargets(command: string, docsDir: string): string[] {
+/**
+ * Top-level folders under the docs root that are NOT published documentation.
+ *
+ * Not a new policy — the auditor already exempts exactly these from domain-folder
+ * validation (`core/audit/rules.ts`). `reports/` is hewtd's own generated output
+ * and `drafts/` is scratch space; deleting either destroys nothing that `archive`
+ * was built to preserve, so the deletion guard has no business refusing it.
+ */
+const UNPUBLISHED_DIRS = new Set(['drafts', 'reports']);
+
+/** Markdown paths under the docs tree that a string names. */
+function markdownTargets(text: string, docsDir: string): string[] {
   const d = normalize(docsDir);
   const re = new RegExp(`[^\\s'"\`;&|]*${d}/[^\\s'"\`;&|]*\\.md`, 'g');
-  return command.match(re) ?? [];
+  return text.match(re) ?? [];
+}
+
+/** Is this docs path published documentation, rather than scratch or generated output? */
+function isPublishedDoc(path: string, docsDir: string): boolean {
+  const rel = relativeToDocs(path, docsDir);
+  if (rel === null) return false;
+  const top = rel.split('/')[0] ?? '';
+  return !UNPUBLISHED_DIRS.has(top);
+}
+
+/**
+ * Remove heredoc bodies from a command.
+ *
+ * A heredoc body is *data* — the shell never executes it as a command. Scanning
+ * it is what let a commit message, an issue body, or a PR description be denied
+ * for quoting a deletion in prose (#21, #26). Filing a bug report about this
+ * guard was itself blocked by this guard.
+ *
+ * Only the body is dropped; the command line that opens it is kept, so
+ * `git commit -F - <<'MSG'` still reads as `git commit -F -`.
+ */
+function stripHeredocBodies(command: string): string {
+  const lines = command.split('\n');
+  const kept: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    kept.push(line);
+
+    const opener = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/.exec(line);
+    if (!opener) continue;
+
+    // Skip to the terminator line (and drop it too). An unterminated heredoc
+    // swallows the rest, which is the correct reading — it is all body.
+    const tag = opener[2];
+    i++;
+    while (i < lines.length && lines[i]!.trim() !== tag) i++;
+  }
+
+  return kept.join('\n');
+}
+
+/** Split a command line into segments the shell would run independently. */
+function shellSegments(command: string): string[] {
+  return command.split(/[;&|\n()]+/);
+}
+
+/**
+ * Does this segment invoke a command that deletes files from disk, and if so
+ * what are its operands?
+ *
+ * Requires the destructive word to be at *command position* — the first word of
+ * a segment, past any `sudo` or `VAR=value` prefixes. "Contains `rm` somewhere"
+ * was the old test, and it is why `rm /tmp/x.md && echo <docs path>` was denied:
+ * an unrelated deletion and an unrelated docs path in one line read as a docs
+ * deletion.
+ *
+ * Known ceiling: a deletion smuggled through another command's arguments —
+ * `find <docs> -exec rm {} +`, `xargs rm` — is not matched. That is a deliberate
+ * miss, per this module's header: a guard that fires on correct operations is
+ * one people learn to route around, and a routed-around guard protects nothing.
+ */
+function fileDeletionOperands(segment: string): string | null {
+  const tokens = segment.trim().split(/\s+/).filter(Boolean);
+
+  let i = 0;
+  while (i < tokens.length && (tokens[i] === 'sudo' || /^\w+=/.test(tokens[i]!))) i++;
+  const word = tokens[i];
+  if (!word) return null;
+
+  if (DESTRUCTIVE_WORDS.has(word)) {
+    return tokens.slice(i + 1).join(' ');
+  }
+
+  if (word === 'git') {
+    const rest = tokens.slice(i + 1);
+    const sub = rest.find((t) => !t.startsWith('-'));
+    if (sub !== 'rm') return null;
+
+    // `git rm --cached` unstages and leaves every file on disk. It is the
+    // documented way to untrack something you are keeping — an index operation,
+    // not a deletion, and nothing `hewtd archive` can substitute for.
+    if (rest.includes('--cached')) return null;
+
+    return rest.slice(rest.indexOf('rm') + 1).join(' ');
+  }
+
+  return null;
+}
+
+/**
+ * Published docs a command would actually delete from disk.
+ *
+ * Structural, not textual: the path must be an operand of a deletion at command
+ * position, outside any heredoc body.
+ */
+function deletionTargets(command: string, docsDir: string): string[] {
+  const targets: string[] = [];
+
+  for (const segment of shellSegments(stripHeredocBodies(command))) {
+    const operands = fileDeletionOperands(segment);
+    if (operands === null) continue;
+    for (const path of markdownTargets(operands, docsDir)) {
+      if (isPublishedDoc(path, docsDir)) targets.push(path);
+    }
+  }
+
+  return targets;
 }
 
 /** Does this text set `status: deprecated` in frontmatter? */
@@ -227,13 +345,12 @@ export function evaluate(
 
   // ---- Bash ---------------------------------------------------------------
   if (toolName === 'Bash' && command) {
-    const targets = markdownTargets(command, docsDir);
-    if (targets.length === 0) return { action: 'allow' };
+    const targets = deletionTargets(command, docsDir);
 
     // DENY: deleting a doc is the one truly irreversible act, and hewtd has a
     // purpose-built, reversible, link-safe alternative. This is the whole
     // reason the plugin never calls rm/unlink anywhere in its own source.
-    if (policy.blockDocDeletion && DESTRUCTIVE_RE.test(command)) {
+    if (policy.blockDocDeletion && targets.length > 0) {
       return {
         action: 'deny',
         reason:
@@ -247,7 +364,8 @@ export function evaluate(
 
     // WARN: a hand-rolled move into archive/ skips the frontmatter stamping,
     // so `unarchive` has no `archived_from` to restore from.
-    if (/(^|[\s;&|(])(mv|git\s+mv)\s/.test(command) && /archive\//.test(command)) {
+    const executable = stripHeredocBodies(command);
+    if (/(^|[\s;&|(])(mv|git\s+mv)\s/.test(executable) && /archive\//.test(executable)) {
       return {
         action: 'warn',
         context:

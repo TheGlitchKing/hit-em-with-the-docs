@@ -23,7 +23,32 @@ It **denies** exactly two things, both destructive:
 | Denied | Why | Instead |
 |---|---|---|
 | `Write`/`Edit` on a generated `INDEX.md` / `REGISTRY.md` under the docs tree | It is rebuilt from disk on the next run — hand-edits are silently discarded, and hand-curated rows are how [#12](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/12) went unnoticed for so long | Change the documents, then `hewtd index` |
-| `rm` / `git rm` / `shred` of a doc under the docs tree | Irreversible, and hewtd has a reversible alternative. hewtd's own source contains **no delete calls anywhere** | `hewtd archive <file>` |
+| `rm` / `git rm` / `unlink` / `shred` of a **published** doc under the docs tree | Irreversible, and hewtd has a reversible alternative. hewtd's own source contains **no delete calls anywhere** | `hewtd archive <file>` |
+
+### What the deletion rule does *not* deny
+
+The rule matches the **operation**, not the text of the command. It asks whether a
+docs path is an operand of a deletion the shell will actually run — not whether the
+words `rm` and `.documentation/` both appear somewhere in the string. That earlier,
+textual test produced a run of false denials ([#21](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/21),
+[#26](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/26)), including
+blocking the filing of the bug report about itself.
+
+So these are allowed:
+
+| Allowed | Why |
+|---|---|
+| A commit message, issue body, or PR description that quotes a deletion | Heredoc bodies are stripped before matching. A command's *data* is not a command. |
+| `rm /tmp/scratch.md && echo .documentation/api/x.md` | The docs path is not an operand of the deletion. |
+| `git rm --cached <doc>` | `--cached` unstages and leaves every file on disk. An index operation, not a deletion — and nothing `archive` substitutes for. |
+| `rm .documentation/drafts/wip.md`, `rm .documentation/reports/health.md` | `drafts/` is scratch and `reports/` is hewtd's own generated output. Neither is published documentation, and the auditor already exempts both from domain validation. |
+| A deletion smuggled through another command's arguments — `find <docs> -exec rm {} +` | A deliberate **miss**. The destructive word must be at command position. |
+
+That last row is the trade this module's header sets out: the cost of a false
+positive is far higher than the cost of a miss. A guard that fires on correct
+operations is one people learn to route around, and a routed-around guard protects
+nothing — in the session behind #26 it fired five times, every underlying operation
+was legitimate, and every one proceeded by another route.
 
 It **warns** (allows the call, and tells the model why) on:
 
