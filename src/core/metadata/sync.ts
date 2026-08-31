@@ -306,7 +306,7 @@ async function syncFile(
     existingMetadata: data,
   });
 
-  const merged = mergeMetadata(data, generated);
+  const merged = normalizeDateFields(mergeMetadata(data, generated));
   result.metadata = merged;
 
   if (!dryRun) {
@@ -328,12 +328,40 @@ function updateAutoFields(
   metadata: PartialDocumentMetadata,
   content: string
 ): PartialDocumentMetadata {
-  return {
+  return normalizeDateFields({
     ...metadata,
     word_count: countWords(content),
     estimated_read_time: formatReadTime(content),
     last_validated: formatDate(new Date()),
-  };
+  });
+}
+
+/** Frontmatter fields the schema types as `YYYY-MM-DD`. */
+const DATE_FIELDS = [
+  'last_updated',
+  'last_validated',
+  'last_verified',
+  'archived_on',
+  'date',
+] as const;
+
+/**
+ * Truncate full ISO timestamps in date fields to `YYYY-MM-DD` on disk.
+ *
+ * The schema accepts either form, but only `--fix` can settle what the file
+ * actually says. Leaving `2026-04-18T00:00:00.000Z` in place meant a doc that
+ * validated only via a preprocess step, and read as a different type to any
+ * other tool looking at the same frontmatter.
+ */
+function normalizeDateFields<T extends PartialDocumentMetadata>(metadata: T): T {
+  const out = { ...metadata } as Record<string, unknown>;
+  for (const field of DATE_FIELDS) {
+    const value = out[field];
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      out[field] = value.slice(0, 10);
+    }
+  }
+  return out as T;
 }
 
 /**

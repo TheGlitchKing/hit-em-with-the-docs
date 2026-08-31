@@ -60,6 +60,14 @@ const dateStringSchema = z.preprocess(
     if (v instanceof Date && !Number.isNaN(v.getTime())) {
       return v.toISOString().slice(0, 10);
     }
+    // A full ISO timestamp carries the date this field is for, so rejecting it
+    // outright helped nobody: `2026-04-18T00:00:00.000Z` was neither accepted
+    // nor truncated, and no `--fix` could resolve it (#28). Until the engine
+    // fix in `utils/frontmatter.ts` these survived only by accident — written
+    // unquoted, re-read as a `Date`, and rescued by the branch above.
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
+      return v.slice(0, 10);
+    }
     return v;
   },
   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format')

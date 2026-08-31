@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Frontmatter round-trips; date fields survive `--fix`
+
+The read and write paths used two different YAML implementations with different
+schemas. `parseFrontmatter()` read via gray-matter's js-yaml **default** schema,
+which includes the YAML 1.1 timestamp type; `stringifyFrontmatter()` wrote via
+the `yaml` package's **core** schema, which does not. So a quoted
+`last_updated: '2026-08-22'` was read as a string, written back **unquoted**,
+and re-read as a `Date`. Frontmatter did not round-trip.
+
+Both ends now use the same implementation, so a `Date` can no longer
+materialize out of frontmatter at all, and an already-damaged file carrying a
+bare date reads back as the string it was meant to be.
+
+Date-shaped values are additionally written **quoted**. Reading is now
+internally consistent, so hewtd alone would cope — but frontmatter is a shared
+contract, and most YAML readers still default to 1.1, where a bare `2026-08-22`
+is a timestamp. Emitting it unquoted hands every other consumer the same bug.
+
+**Full ISO timestamps are now accepted and normalized.**
+`last_updated: '2026-04-18T00:00:00.000Z'` was neither accepted nor truncated,
+and no `--fix` could resolve it. The schema now truncates a date-time string to
+`YYYY-MM-DD`, and `--fix` settles it on disk. Until the engine fix above, these
+validated only by accident — written unquoted, re-read as a `Date`, and rescued
+by the existing `Date` branch.
+
+`maintain --fix` is now idempotent on date fields: a second run rewrites
+nothing.
+
+Scope note for anyone reading the original report: on 2.8.2 the audit failure it
+describes no longer occurred, because `dateStringSchema` has coerced `Date` back
+to `YYYY-MM-DD` since 2.3.0 (the report quotes a pre-2.3.0 schema and a 2.0.0
+CLI). The quote-stripping itself was still real and is what is fixed here.
+
+Closes [#28](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/28).
+
+
 ### `extractLinks()` understands indented code blocks and CommonMark fences
 
 2.8.2 taught the link scanner about fenced blocks and inline code spans. Two
