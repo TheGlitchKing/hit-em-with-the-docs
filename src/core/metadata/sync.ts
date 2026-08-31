@@ -1,11 +1,11 @@
 import { readFile, writeFile } from 'fs/promises';
 import { relative } from 'path';
 import { findMarkdownFiles, pathExists } from '../../utils/glob.js';
-import { join } from 'path';
+import { join, resolve, sep } from 'path';
+import { loadPluginConfig, resolveDocsRoot } from '../../utils/config.js';
 import { parseFrontmatter, setFrontmatter } from '../../utils/frontmatter.js';
 import { countWords, formatReadTime } from '../../utils/markdown.js';
 import { logger } from '../../utils/logger.js';
-import { getAllDomains } from '../domains/registry.js';
 import {
   validatePartialMetadata,
   getMissingRequiredFields,
@@ -16,6 +16,12 @@ import { generateMetadata, mergeMetadata, formatDate } from './generator.js';
 
 export interface SyncOptions {
   docsPath: string;
+  /**
+   * Project root the `docs_root` declaration is resolved against. Defaults to
+   * `process.cwd()`, which is what the CLI wants; pass it explicitly when the
+   * docs tree is not under the current directory.
+   */
+  projectRoot?: string;
   dryRun?: boolean;
   fix?: boolean;
   domain?: string;
@@ -51,6 +57,7 @@ export interface SyncStats {
 export async function syncMetadata(options: SyncOptions): Promise<SyncResult> {
   const {
     docsPath,
+    projectRoot = process.cwd(),
     dryRun = false,
     fix = false,
     domain,
@@ -86,19 +93,23 @@ export async function syncMetadata(options: SyncOptions): Promise<SyncResult> {
   // fixtures, loose READMEs (#25). Nothing about the name `metadata-sync`
   // warns of that, and the damage spreads over hundreds of files at once.
   //
+  // The root is whatever the project DECLARES (`docs_root`), not whatever looks
+  // docs-shaped — see `isDocumentationRoot`.
+  //
   // Reads are unaffected: a scan writes nothing, and being able to inspect an
   // unmanaged directory is useful. `--dry-run` is likewise allowed, so the
   // preview of what `--fix` would do still works anywhere.
-  if (fix && !dryRun && !(await isDocumentationRoot(docsPath))) {
+  if (fix && !dryRun && !(await isDocumentationRoot(docsPath, projectRoot))) {
     const message =
-      `${docsPath} is not a hit-em-with-the-docs documentation root, so --fix ` +
-      `refuses to write there. --fix stamps frontmatter into every markdown file it ` +
-      `finds, and pointed at a source tree it rewrites files that are not ` +
-      `documentation. Run \`hewtd init\` to create the tree, pass --path to point at ` +
-      `an existing one, or drop --fix to scan read-only.`;
+      `${docsPath} is outside this project's documentation root, so --fix refuses ` +
+      `to write there. --fix stamps frontmatter into every markdown file it finds, ` +
+      `and pointed at a source tree it rewrites files that are not documentation. ` +
+      `The root is \`docs_root\` in .claude/hit-em-with-the-docs.json (default ` +
+      `\`.documentation\`) — set it if your docs live elsewhere, point --path inside ` +
+      `it, or drop --fix to scan read-only.`;
     if (!silent) logger.error(message);
     result.errors.push({
-      file: relative(process.cwd(), docsPath),
+      file: relative(projectRoot, docsPath),
       error: message,
       fixable: false,
     });
@@ -199,32 +210,28 @@ export async function syncMetadata(options: SyncOptions): Promise<SyncResult> {
 }
 
 /**
- * Does this directory look like a tree hewtd manages?
+ * Is this path the project's documentation root, or inside it?
  *
- * Two markers, either sufficient:
+ * Answered from what the project *declares* (`docs_root` in
+ * `.claude/hit-em-with-the-docs.json`, default `.documentation`) rather than by
+ * sniffing the directory's contents. The distinction matters: a content sniff
+ * asks "does this look like a docs tree?", which any repository with a
+ * top-level `api/` or `testing/` folder can accidentally satisfy. A declaration
+ * asks "is this the tree this project said its documentation lives in", which
+ * nothing satisfies by accident.
  *
- *   - a root `INDEX.md` — what `scaffoldExists` already treats as the sign of a
- *     scaffolded tree;
- *   - a folder named for an active domain — which covers a tree whose docs are
- *     in place but whose indexes have not been generated yet. `maintain` is
- *     exactly that case: it syncs at Step 1 and only regenerates indexes at
- *     Step 1.5, so requiring INDEX.md alone would fail a legitimate first run.
- *
- * Residual hole, accepted knowingly: a repository whose root happens to hold a
- * directory named for a built-in domain (`api/`, `testing/`) would pass the
- * second marker if someone explicitly aimed `--fix` at it. Narrow, and it still
- * takes a deliberate `--path`. The alternative — demanding INDEX.md always —
- * fires on correct operations, and a check that does that is one people learn
- * to route around.
+ * The `INDEX.md` fallback covers a tree scaffolded somewhere other than the
+ * declared root — `hewtd init -p docs` and then `metadata-sync -p docs`. hewtd
+ * writes that file, so its presence is a positive marker rather than a guess; a
+ * source tree does not have one at its root.
  */
-async function isDocumentationRoot(docsPath: string): Promise<boolean> {
-  if (await pathExists(join(docsPath, 'INDEX.md'))) return true;
+async function isDocumentationRoot(docsPath: string, projectRoot: string): Promise<boolean> {
+  const declared = resolveDocsRoot(projectRoot, await loadPluginConfig(projectRoot));
 
-  for (const domain of getAllDomains()) {
-    if (await pathExists(join(docsPath, domain))) return true;
-  }
+  const target = resolve(docsPath);
+  if (target === declared || target.startsWith(declared + sep)) return true;
 
-  return false;
+  return pathExists(join(docsPath, 'INDEX.md'));
 }
 
 interface FileSyncResult {

@@ -12,6 +12,7 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname, join, resolve } from 'path';
 import { z } from 'zod';
 
+export const DEFAULT_DOCS_ROOT = '.documentation';
 export const DEFAULT_VAULT_ROOT = '.documentation/knowledge-base/';
 export const DEFAULT_PLAYBOOK_GLOBS = ['.documentation/**/*.md'];
 export const DEFAULT_AUDIT_WINDOW_DAYS = 90;
@@ -142,6 +143,13 @@ const lenientStatusArray = z
 
 const pluginConfigSchema = z
   .object({
+    /**
+     * Where this project's documentation lives — the single source of truth for
+     * a question the CLI previously only ever answered per-invocation, via
+     * `--path`. Commands that WRITE consult it to confirm they were aimed at the
+     * documentation tree and not at a source tree (#25).
+     */
+    docs_root: z.string().min(1).default(DEFAULT_DOCS_ROOT),
     vault: vaultConfigSchema,
     enforcement: enforcementConfigSchema,
     domains: lenientDomainsArray,
@@ -246,6 +254,14 @@ export async function writeRawConfig(
 /** Absolute path to a project's config file (whether or not it exists). */
 export function configFilePath(projectRoot: string): string {
   return resolve(projectRoot, CONFIG_FILENAME);
+}
+
+/**
+ * Resolve the documentation root for a project, applying config + defaults.
+ * The returned path is absolute.
+ */
+export function resolveDocsRoot(projectRoot: string, config: PluginConfig): string {
+  return resolve(projectRoot, config.docs_root);
 }
 
 /**

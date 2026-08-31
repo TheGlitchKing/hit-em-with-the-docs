@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### `metadata-sync --fix` is scoped to documentation roots
+### `metadata-sync --fix` is scoped to the declared documentation root
 
 `--fix` writes the full frontmatter block into every markdown file it finds, and
 `--path` accepts any directory. Aimed at a source tree it rewrote unrelated
@@ -12,20 +12,28 @@ markdown across a whole repository — infrastructure notes, test fixtures, loos
 READMEs — stamping 16 lines of hewtd metadata onto files that are not
 documentation. Nothing in the command's name suggests that reach.
 
-`--fix` now refuses to write unless the target is a documentation root: one with
-a root `INDEX.md`, or a folder named for an active domain. The second marker
-matters because `maintain` syncs at Step 1 and only regenerates indexes at Step
-1.5, so requiring `INDEX.md` alone would fire on a legitimate first run.
+The root cause was that **nothing declared where a project's documentation
+lives**. The docs root existed only as a per-invocation `--path`, so a safety
+check had nothing to consult and could only guess from directory contents.
+
+New `docs_root` in `.claude/hit-em-with-the-docs.json` (default
+`.documentation`) is that declaration. `--fix` now refuses to write anywhere
+outside it. A tree scaffolded elsewhere still works: a root `INDEX.md` is
+accepted as a positive marker, because hewtd is what writes it.
+
+Deciding by declaration rather than by content sniff is the point. An earlier
+cut of this fix tested for domain-named folders — which any repository with a
+top-level `api/` or `testing/` satisfies by accident. Nothing satisfies a
+declaration by accident.
 
 Reads are unrestricted, and so is `--dry-run` — the preview of what `--fix`
 would do still works anywhere.
 
-Residual hole, accepted knowingly: a repository whose root happens to hold a
-directory named for a built-in domain (`api/`, `testing/`) passes the second
-marker if someone explicitly aims `--fix` at it.
+`syncMetadata` gains an optional `projectRoot` (defaults to `process.cwd()`) so
+the declaration resolves correctly for callers whose docs tree is not under the
+current directory.
 
 Closes [#25](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/25).
-
 
 ### Lifecycle guard: deletion is matched structurally, not textually
 

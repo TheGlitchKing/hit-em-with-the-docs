@@ -68,7 +68,7 @@ describe('metadata-sync scope (#25)', () => {
     const result = await syncMetadata({ docsPath: src, fix: true, silent: true });
 
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]!.error).toContain('not a hit-em-with-the-docs documentation root');
+    expect(result.errors[0]!.error).toContain("outside this project's documentation root");
     expect(result.fixedFiles).toBe(0);
   });
 
@@ -120,23 +120,99 @@ describe('metadata-sync scope (#25)', () => {
     expect(result.fixedFiles).toBeGreaterThan(0);
   });
 
-  it('accepts a docs tree whose indexes have not been generated yet', async () => {
+  it('accepts the declared docs root even with no INDEX.md yet', async () => {
     // `maintain` syncs at Step 1 and regenerates indexes at Step 1.5, so
-    // demanding INDEX.md alone would fire on a legitimate first run. A folder
-    // named for an active domain is the second marker.
+    // demanding INDEX.md would fire on a legitimate first run.
     const docs = join(root, '.documentation');
     await mkdir(join(docs, 'api'), { recursive: true });
     await writeFile(join(docs, 'api', 'a.md'), DOC, 'utf-8');
 
-    const result = await syncMetadata({ docsPath: docs, fix: true, silent: true });
+    // `root` is the project; `.documentation` is its DECLARED docs root, so this
+    // is allowed on its declaration alone — no INDEX.md and no content sniffing.
+    const result = await syncMetadata({
+      docsPath: docs,
+      projectRoot: root,
+      fix: true,
+      silent: true,
+    });
     expect(result.errors).toHaveLength(0);
   });
 
-  it('refuses an empty directory with neither marker', async () => {
+  it('refuses a repo root that merely CONTAINS domain-named folders', async () => {
+    // The hole in the first cut of this fix. Deciding by content sniff — "does
+    // this look like a docs tree?" — any repository with a top-level `api/` or
+    // `testing/` satisfied by accident. Deciding by declaration does not.
+    await mkdir(join(root, 'api'), { recursive: true });
+    await mkdir(join(root, 'testing'), { recursive: true });
+    await writeFile(join(root, 'api', 'spec.md'), NON_DOC, 'utf-8');
+    await writeFile(join(root, 'LOOSE.md'), NON_DOC, 'utf-8');
+
+    const result = await syncMetadata({
+      docsPath: root,
+      projectRoot: root,
+      fix: true,
+      silent: true,
+    });
+
+    expect(result.errors[0]!.error).toContain("outside this project's documentation root");
+    expect(await readFile(join(root, 'LOOSE.md'), 'utf-8')).toBe(NON_DOC);
+    expect(await readFile(join(root, 'api', 'spec.md'), 'utf-8')).toBe(NON_DOC);
+  });
+
+  it('honors a docs_root declared in config', async () => {
+    await mkdir(join(root, '.claude'), { recursive: true });
+    await writeFile(
+      join(root, '.claude', 'hit-em-with-the-docs.json'),
+      JSON.stringify({ docs_root: 'mydocs' }),
+      'utf-8'
+    );
+    await mkdir(join(root, 'mydocs', 'api'), { recursive: true });
+    await writeFile(join(root, 'mydocs', 'api', 'a.md'), DOC, 'utf-8');
+
+    const result = await syncMetadata({
+      docsPath: join(root, 'mydocs'),
+      projectRoot: root,
+      fix: true,
+      silent: true,
+    });
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('allows a subdirectory of the declared root', async () => {
+    const docs = join(root, '.documentation');
+    await mkdir(join(docs, 'api'), { recursive: true });
+    await writeFile(join(docs, 'api', 'a.md'), DOC, 'utf-8');
+
+    const result = await syncMetadata({
+      docsPath: join(docs, 'api'),
+      projectRoot: root,
+      fix: true,
+      silent: true,
+    });
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('does not treat a sibling with the same prefix as inside the root', async () => {
+    // `.documentation-backup` must not pass as `.documentation`.
+    const sibling = join(root, '.documentation-backup');
+    await mkdir(sibling, { recursive: true });
+    await writeFile(join(sibling, 'a.md'), NON_DOC, 'utf-8');
+
+    const result = await syncMetadata({
+      docsPath: sibling,
+      projectRoot: root,
+      fix: true,
+      silent: true,
+    });
+    expect(result.errors[0]!.error).toContain("outside this project's documentation root");
+    expect(await readFile(join(sibling, 'a.md'), 'utf-8')).toBe(NON_DOC);
+  });
+
+  it('refuses an empty directory outside the declared root', async () => {
     const empty = join(root, 'empty');
     await mkdir(empty, { recursive: true });
 
     const result = await syncMetadata({ docsPath: empty, fix: true, silent: true });
-    expect(result.errors[0]!.error).toContain('not a hit-em-with-the-docs documentation root');
+    expect(result.errors[0]!.error).toContain("outside this project's documentation root");
   });
 });
