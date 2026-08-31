@@ -37,6 +37,9 @@ export type BuiltinDomain = (typeof DOMAINS)[number];
  * `isValidDomain`, `getDomainDefinition`, …) for the live set; the `DOMAINS`
  * and `DOMAIN_DEFINITIONS` exports below are the BUILT-INS ONLY.
  */
+// `string & {}` is the idiom that keeps built-in autocomplete while accepting
+// custom ids; `string` alone would swallow the union.
+// eslint-disable-next-line @typescript-eslint/ban-types
 export type Domain = BuiltinDomain | (string & {});
 
 export type DomainCategory = 'core' | 'development' | 'features' | 'advanced';
