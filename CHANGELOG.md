@@ -2,7 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.9.0] — 2026-08-31
+
+Seven issues from the backlog. One new capability — two things that were
+hardcoded are now declared in `.claude/hit-em-with-the-docs.json`: the `status`
+vocabulary and `docs_root`. The rest are fixes, and four of them share a root
+cause worth naming: hewtd was matching **text** where it should have been
+matching **structure** — a substring for a shell deletion, a filename shape for
+a generated report, a leading-space count for a code block, a YAML schema on one
+end of a round-trip and a different one on the other.
 
 ### hewtd no longer audits its own generated reports
 
