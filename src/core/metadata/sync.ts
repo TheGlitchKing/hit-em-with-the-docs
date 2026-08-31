@@ -1,9 +1,11 @@
 import { readFile, writeFile } from 'fs/promises';
 import { relative } from 'path';
-import { findMarkdownFiles } from '../../utils/glob.js';
+import { findMarkdownFiles, pathExists } from '../../utils/glob.js';
+import { join } from 'path';
 import { parseFrontmatter, setFrontmatter } from '../../utils/frontmatter.js';
 import { countWords, formatReadTime } from '../../utils/markdown.js';
 import { logger } from '../../utils/logger.js';
+import { getAllDomains } from '../domains/registry.js';
 import {
   validatePartialMetadata,
   getMissingRequiredFields,
@@ -74,6 +76,33 @@ export async function syncMetadata(options: SyncOptions): Promise<SyncResult> {
     logger.header('Metadata Sync');
     if (dryRun) logger.info('Running in dry-run mode (no changes will be made)');
     if (fix) logger.info('Auto-fix mode enabled');
+  }
+
+  // Refuse to WRITE into a directory that is not a hewtd documentation root.
+  //
+  // `--path` takes any directory, and `syncFile` stamps 16 lines of hewtd
+  // frontmatter onto whatever markdown it finds. Pointed at a repo root it
+  // rewrote unrelated markdown across the tree — infrastructure notes, test
+  // fixtures, loose READMEs (#25). Nothing about the name `metadata-sync`
+  // warns of that, and the damage spreads over hundreds of files at once.
+  //
+  // Reads are unaffected: a scan writes nothing, and being able to inspect an
+  // unmanaged directory is useful. `--dry-run` is likewise allowed, so the
+  // preview of what `--fix` would do still works anywhere.
+  if (fix && !dryRun && !(await isDocumentationRoot(docsPath))) {
+    const message =
+      `${docsPath} is not a hit-em-with-the-docs documentation root, so --fix ` +
+      `refuses to write there. --fix stamps frontmatter into every markdown file it ` +
+      `finds, and pointed at a source tree it rewrites files that are not ` +
+      `documentation. Run \`hewtd init\` to create the tree, pass --path to point at ` +
+      `an existing one, or drop --fix to scan read-only.`;
+    if (!silent) logger.error(message);
+    result.errors.push({
+      file: relative(process.cwd(), docsPath),
+      error: message,
+      fixable: false,
+    });
+    return result;
   }
 
   // Find all markdown files
@@ -167,6 +196,35 @@ export async function syncMetadata(options: SyncOptions): Promise<SyncResult> {
   }
 
   return result;
+}
+
+/**
+ * Does this directory look like a tree hewtd manages?
+ *
+ * Two markers, either sufficient:
+ *
+ *   - a root `INDEX.md` — what `scaffoldExists` already treats as the sign of a
+ *     scaffolded tree;
+ *   - a folder named for an active domain — which covers a tree whose docs are
+ *     in place but whose indexes have not been generated yet. `maintain` is
+ *     exactly that case: it syncs at Step 1 and only regenerates indexes at
+ *     Step 1.5, so requiring INDEX.md alone would fail a legitimate first run.
+ *
+ * Residual hole, accepted knowingly: a repository whose root happens to hold a
+ * directory named for a built-in domain (`api/`, `testing/`) would pass the
+ * second marker if someone explicitly aimed `--fix` at it. Narrow, and it still
+ * takes a deliberate `--path`. The alternative — demanding INDEX.md always —
+ * fires on correct operations, and a check that does that is one people learn
+ * to route around.
+ */
+async function isDocumentationRoot(docsPath: string): Promise<boolean> {
+  if (await pathExists(join(docsPath, 'INDEX.md'))) return true;
+
+  for (const domain of getAllDomains()) {
+    if (await pathExists(join(docsPath, domain))) return true;
+  }
+
+  return false;
 }
 
 interface FileSyncResult {

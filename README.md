@@ -420,7 +420,20 @@ hewtd metadata-sync --fix
 
 # Fix only security documents
 hewtd metadata-sync --domain security --fix
+
+# Preview exactly what --fix would rewrite, without writing
+hewtd metadata-sync --fix --dry-run
 ```
+
+> [!WARNING]
+> `--fix` **writes to every markdown file it finds** under `--path`, stamping the
+> full frontmatter block onto each one. That is the intended behavior inside a
+> documentation tree and vandalism outside it, so `--fix` refuses to run unless
+> the target is a hit-em-with-the-docs root — one with an `INDEX.md` or a domain
+> folder. Reads and `--dry-run` are unrestricted.
+>
+> Scope it before you run it: `--path` sets the root and `--domain` narrows to
+> one folder. `--dry-run` reports what would change and writes nothing.
 
 **When to use it**:
 - After manually editing lots of files
