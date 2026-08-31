@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### `extractLinks()` understands indented code blocks and CommonMark fences
+
+2.8.2 taught the link scanner about fenced blocks and inline code spans. Two
+gaps remained, both surfaced by [#22](https://github.com/TheGlitchKing/hit-em-with-the-docs/pull/22)
+from @andrewcb22:
+
+- **Indented code blocks were still scanned**, so a link shown as an example in
+  a four-space block was reported as broken — the same defect as
+  [#20](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/20), one
+  code shape over.
+- **Fence closing was too loose.** Any run of the same marker character closed a
+  block regardless of length, and a fence indented four columns was read as a
+  fence rather than as code. Per CommonMark a closing fence must be at least as
+  long as its opener, and an opener may be indented at most three columns.
+
+Both fixed. Indentation is treated as code only when it is at least four
+columns, follows a blank line (indented code cannot interrupt a paragraph), and
+is **not inside a list** — inside a list, four columns is ordinary continuation
+content, a nested item or a second paragraph. Treating that as code would hide
+links that are genuinely broken, which is a worse failure than the one being
+fixed: #20 reported links that were not broken; this would hide links that are.
+
+Offsets are still preserved: inline spans are blanked with spaces, so
+`startIndex`, `endIndex`, and `lineNumber` stay correct for a real link sharing
+a line with a span.
+
+
 ### `metadata-sync --fix` is scoped to the declared documentation root
 
 `--fix` writes the full frontmatter block into every markdown file it finds, and
