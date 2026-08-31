@@ -54,6 +54,24 @@ export async function glob(
  */
 export const ARCHIVE_DIR = 'archive';
 
+/**
+ * Reserved documentation subdirectory for hewtd's OWN generated output.
+ *
+ * `audit`, `report`, and `maintain` write `audit-*`, `links-*`, `health-*` and
+ * `maintenance-*` files into `<docs>/reports/`. Scanning them made the tool
+ * grade its own artifacts: each report carries `domains: [root]` and an ISO
+ * timestamp in its filename, so each one raised a `metadata-domain` and a
+ * `naming-convention` warning, and the headline health score fell the more
+ * often maintenance was run. A team running `maintain` weekly watched its score
+ * drop for doing maintenance, which makes the number useless as a trend line.
+ *
+ * Excluded at the docs root ONLY — `<docs>/reports/`, which is the sole place
+ * hewtd writes them (`join(docsPath, 'reports')`). A `features/reports/` folder
+ * is somebody's documentation *about* reports and stays audited; assuming the
+ * name implied the artifact is the mistake #19 was about.
+ */
+export const REPORTS_DIR = 'reports';
+
 /** Glob ignores always applied to documentation scans. */
 const DOC_SCAN_IGNORE = [
   'node_modules/**',
@@ -61,15 +79,17 @@ const DOC_SCAN_IGNORE = [
   '.git/**',
   `${ARCHIVE_DIR}/**`,
   `**/${ARCHIVE_DIR}/**`,
+  `${REPORTS_DIR}/**`,
 ];
 
 /**
  * Find all markdown files in a directory.
  *
- * Used exclusively as the documentation-corpus scanner, so it always skips
- * the reserved `archive/` subtree (deprecated docs) in addition to the
+ * Used exclusively as the documentation-corpus scanner, so it always skips the
+ * reserved `archive/` subtree (deprecated docs, at any depth) and the root
+ * `reports/` subtree (hewtd's own generated output), in addition to the
  * standard build/vcs ignores. Callers may pass extra `ignore` patterns; they
- * are merged, never override the archive exclusion.
+ * are merged, never override these exclusions.
  */
 export async function findMarkdownFiles(
   dir: string,
