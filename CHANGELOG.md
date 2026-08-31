@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Lifecycle guard: deletion is matched structurally, not textually
+
+The deletion rule asked two independent questions of the whole Bash command
+string — "is `rm` present anywhere" and "is a docs path present anywhere" — and
+denied when both were true. Neither asked whether the path was an *operand* of
+the deletion, or whether the text sat inside a heredoc body the shell never
+executes.
+
+The result was a run of false denials. A commit message that named `git rm
+--cached` in prose. An issue body that quoted a deletion next to a docs path —
+including, twice, the filing of the bug report about this very behavior. A
+scratch-directory cleanup that happened to share a line with an unrelated `[ -f
+<doc> ]` existence check. In the session behind #26 the guard fired five times;
+every underlying operation was legitimate and every one proceeded by another
+route. The protection was pure friction.
+
+This is the same shape as [#19](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/19):
+matching a substring where the structure was the thing that mattered. There the
+name `INDEX.md` was taken to imply "generated"; here the presence of `rm`
+anywhere in a string was taken to imply "a file is being deleted".
+
+Now denied only when a docs path is an operand of a deletion at command
+position. Consequently allowed:
+
+- **Prose that quotes a deletion.** Heredoc bodies are stripped before matching.
+- **`git rm --cached`.** It unstages and leaves every file on disk — an index
+  operation, not a deletion, and nothing `hewtd archive` substitutes for.
+- **An unrelated deletion sharing a line with a docs path.** `rm /tmp/x.md &&
+  echo <doc>` is not a docs deletion.
+- **`drafts/` and `reports/`.** Scratch space and hewtd's own generated output.
+  Not new policy: `core/audit/rules.ts` already exempts exactly these two from
+  domain-folder validation.
+
+Genuine deletions still deny, including quoted paths, flag-carrying forms
+(`rm -rf`), `unlink`/`shred`, `sudo` and env-assignment prefixes, deletions in
+any segment of a compound command, and a deletion following a closed heredoc.
+
+Known ceiling, deliberately accepted: a deletion smuggled through another
+command's arguments (`find <docs> -exec rm {} +`, `xargs rm`) is not matched.
+The module's header already sets out the calculus — the cost of a false positive
+is far higher than the cost of a miss, because a guard people learn to route
+around protects nothing.
+
+17 new guard tests. Closes [#21](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/21)
+and [#26](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/26).
+
+
 ### Project-configurable `status` vocabulary
 
 `status` was validated against a hardcoded four-value enum (`draft|active|

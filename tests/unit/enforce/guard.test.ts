@@ -247,3 +247,131 @@ describe('guard — the escape hatch', () => {
     expect(ev({ toolName: 'Bash', command: 'rm .documentation/a.md' }, policy).action).toBe('deny');
   });
 });
+
+describe('guard — deletion is matched structurally, not textually (#21, #26)', () => {
+  // The old rule asked two independent questions of the whole command string:
+  // "is `rm` present anywhere" and "is a docs path present anywhere". Neither
+  // asked whether the path was an OPERAND of the deletion, or whether the text
+  // sat in a heredoc body the shell never executes. Same shape as #19: matching
+  // a substring where the structure was the thing that mattered.
+
+  const bash = (command: string) => ev({ toolName: 'Bash', command }).action;
+
+  describe('heredoc bodies are data, not commands', () => {
+    it('allows an issue comment whose body quotes a deletion (#21)', () => {
+      // The sentence being blocked was documentation of this guard's own behavior.
+      const command = [
+        `gh issue comment 1141 --body "$(cat <<'EOF'`,
+        'Untracking these means a cached-remove, which trips the same guard.',
+        'e.g. `rm .documentation/api/endpoints.md` — see .documentation/INDEX.md',
+        'EOF',
+        ')"',
+      ].join('\n');
+      expect(bash(command)).toBe('allow');
+    });
+
+    it('allows a commit message that names a deletion in prose (#26 case 2)', () => {
+      const command = [
+        `git commit -F - <<'MSG'`,
+        'docs: untrack generated reports',
+        'rm .documentation/api/endpoints.md was the old way',
+        'MSG',
+      ].join('\n');
+      expect(bash(command)).toBe('allow');
+    });
+
+    it('handles an unquoted heredoc tag and a <<- indented terminator', () => {
+      const command = ['cat <<-EOF', 'rm .documentation/api/endpoints.md', '\tEOF'].join('\n');
+      expect(bash(command)).toBe('allow');
+    });
+
+    it('still denies a real deletion AFTER a heredoc block closes', () => {
+      const command = [
+        `git commit -F - <<'MSG'`,
+        'some prose',
+        'MSG',
+        'rm .documentation/api/endpoints.md',
+      ].join('\n');
+      expect(bash(command)).toBe('deny');
+    });
+  });
+
+  describe('the docs path must be an operand of the deletion', () => {
+    it('allows deleting something outside the tree while naming a doc', () => {
+      expect(bash('rm /tmp/scratch.md && echo see .documentation/api/endpoints.md')).toBe('allow');
+    });
+
+    it('allows an unrelated existence check alongside a scratch delete (#26 case 4)', () => {
+      const command =
+        '[ -f .documentation/features/tiers/x.md ] && echo published; ' +
+        'find .documentation/drafts -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +';
+      expect(bash(command)).toBe('allow');
+    });
+
+    it('denies a deletion in any segment of a compound command', () => {
+      expect(bash('cd /tmp && rm .documentation/api/endpoints.md')).toBe('deny');
+    });
+
+    it('sees past sudo and leading env assignments', () => {
+      expect(bash('sudo rm .documentation/api/endpoints.md')).toBe('deny');
+      expect(bash('FOO=bar rm .documentation/api/endpoints.md')).toBe('deny');
+    });
+
+    it('still denies a quoted path and flag-carrying forms', () => {
+      expect(bash('rm ".documentation/api/endpoints.md"')).toBe('deny');
+      expect(bash('rm -rf .documentation/api/endpoints.md')).toBe('deny');
+      expect(bash('unlink .documentation/api/endpoints.md')).toBe('deny');
+      expect(bash('shred .documentation/api/endpoints.md')).toBe('deny');
+    });
+  });
+
+  describe('git rm --cached is an index operation, not a deletion (#26 case 1)', () => {
+    it('allows --cached, which leaves every file on disk', () => {
+      expect(bash('git rm --cached .documentation/api/endpoints.md')).toBe('allow');
+      expect(bash('git rm -r --cached .documentation/reports/health.md')).toBe('allow');
+    });
+
+    it('still denies git rm without --cached', () => {
+      expect(bash('git rm .documentation/api/endpoints.md')).toBe('deny');
+      expect(bash('git rm -f .documentation/api/endpoints.md')).toBe('deny');
+    });
+  });
+
+  describe('drafts/ and reports/ are not published documentation', () => {
+    // The auditor already exempts exactly these from domain validation
+    // (core/audit/rules.ts) — reports/ is hewtd's own generated output and
+    // drafts/ is scratch. `archive` preserves neither, so refusing is pure friction.
+    it('allows deleting a draft', () => {
+      expect(bash('rm .documentation/drafts/wip.md')).toBe('allow');
+    });
+
+    it('allows deleting generated reports', () => {
+      expect(bash('rm .documentation/reports/health-2026.md')).toBe('allow');
+    });
+
+    it('still denies deleting a published doc in a domain folder', () => {
+      expect(bash('rm .documentation/api/endpoints.md')).toBe('deny');
+    });
+  });
+
+  describe('unrelated commands stay untouched', () => {
+    it('allows an in-place edit — the guard has no deletion to report', () => {
+      // #26 case 5 reported this as blocked; it does not reproduce. `sed` is not
+      // a deletion, so no deny fires and no archive advice is offered.
+      expect(bash('sed -i "s/^version: 1.0.0$/version: 1.0.1/" .documentation/plans/x.md')).toBe(
+        'allow'
+      );
+    });
+
+    it('does not warn about an archive move merely quoted in a heredoc', () => {
+      const command = [`gh pr create --body "$(cat <<'EOF'`, 'mv x archive/y', 'EOF', ')"'].join(
+        '\n'
+      );
+      expect(bash(command)).toBe('allow');
+    });
+
+    it('still warns on a real hand-rolled move into archive/', () => {
+      expect(bash('mv .documentation/api/old.md .documentation/api/archive/old.md')).toBe('warn');
+    });
+  });
+});
