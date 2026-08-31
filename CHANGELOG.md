@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### hewtd no longer audits its own generated reports
+
+`audit`, `report`, and `maintain` write their output into `<docs>/reports/`, and
+every scan then read it back as documentation. Each generated report carries
+`domains: [root]` and an ISO timestamp in its filename, so each one raised a
+`metadata-domain` and a `naming-convention` warning. The headline health score
+fell as reports accumulated rather than as documentation quality changed — a
+team running `maintain` weekly watched its score drop for doing maintenance,
+which makes the number useless as a trend line.
+
+Measured on a fresh project before the fix: warnings went 3 → 5 as the reports
+directory went 1 → 2 files, and kept climbing. After: flat, regardless of how
+many reports have accumulated.
+
+`reports/` now joins `archive/` in the always-applied scan ignores, so `audit`,
+`link-check`, `metadata-sync` and the archive scanners all skip it. Zero errors
+were ever involved — this was warning noise and a misleading average — so no
+previously-reported problem stops being reported.
+
+**Excluded at the docs root only**, unlike `archive/` which is excluded at any
+depth. `<docs>/reports/` is the sole place hewtd writes reports
+(`join(docsPath, 'reports')`); a `features/reports/` folder is somebody's
+documentation *about* reports and stays audited. Assuming a name implied a
+generated artifact is precisely the defect
+[#19](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/19) was about.
+
+No `exclude` config key: the report location is not configurable, so a
+hardcoded exclusion is exactly symmetric with it.
+
+Closes [#27](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/27).
+
+
 ### Frontmatter round-trips; date fields survive `--fix`
 
 The read and write paths used two different YAML implementations with different
