@@ -428,9 +428,10 @@ hewtd metadata-sync --fix --dry-run
 > [!WARNING]
 > `--fix` **writes to every markdown file it finds** under `--path`, stamping the
 > full frontmatter block onto each one. That is the intended behavior inside a
-> documentation tree and vandalism outside it, so `--fix` refuses to run unless
-> the target is a hit-em-with-the-docs root — one with an `INDEX.md` or a domain
-> folder. Reads and `--dry-run` are unrestricted.
+> documentation tree and vandalism outside it, so `--fix` refuses to write
+> anywhere outside your project's documentation root (see
+> [Documentation root](#documentation-root)). Reads and `--dry-run` are
+> unrestricted.
 >
 > Scope it before you run it: `--path` sets the root and `--domain` narrows to
 > one folder. `--dry-run` reports what would change and writes nothing.
@@ -1227,6 +1228,32 @@ load_priority: 8                          # Override default domain priority (1-
 prerequisites: ["setup.md", "auth.md"]    # Required reading
 difficulty: intermediate                  # beginner|intermediate|advanced
 ```
+
+### Documentation root
+
+`docs_root` in `.claude/hit-em-with-the-docs.json` declares where this project's
+documentation lives. It defaults to `.documentation`, so most projects never set it:
+
+```json
+{
+  "docs_root": "mydocs"
+}
+```
+
+This is the single source of truth for the question, and commands that **write**
+consult it. `metadata-sync --fix` stamps frontmatter into every markdown file it
+finds, so before writing it confirms the target is the declared root or inside it;
+otherwise it refuses. Pointed at a source tree, `--fix` would otherwise rewrite
+hundreds of files that are not documentation.
+
+The check is deliberately a *declaration* rather than a guess. An earlier cut asked
+"does this directory look like a docs tree?" by testing for domain-named folders —
+which any repository with a top-level `api/` or `testing/` satisfies by accident.
+Nothing satisfies a declaration by accident.
+
+A tree scaffolded somewhere other than the declared root still works: `hewtd init -p
+docs` writes `docs/INDEX.md`, and a root `INDEX.md` is accepted as a positive marker
+because hewtd is what writes it.
 
 ### Custom Status Vocabulary
 
