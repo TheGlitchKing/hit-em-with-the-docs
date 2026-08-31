@@ -111,11 +111,41 @@ const enforcementConfigSchema = z
   })
   .default({});
 
+/**
+ * A project-declared `status` value. Lowercase word characters plus `-`/`_`,
+ * matching the shape of the built-ins (`draft`) and of the vocabularies
+ * projects actually adopt (`complete`, `current`, `in_progress`).
+ */
+const STATUS_VALUE_RE = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
+
+export const statusValueSchema = z
+  .string()
+  .regex(STATUS_VALUE_RE, 'status value must be lowercase, - or _ separated');
+
+/**
+ * Extra `status` values this project recognizes, ADDED to hewtd's four
+ * built-ins — never replacing them. The built-ins are not a style preference:
+ * `archive` writes `status: archived`, `unarchive` writes `status: active`,
+ * the deprecation nudge keys on `status: deprecated`, and every generated
+ * INDEX/REGISTRY is emitted with `status: active`. A project that could drop
+ * them would invalidate hewtd's own output with its own config.
+ *
+ * Lenient like `domains[]`: malformed entries are dropped rather than failing
+ * the whole config load, preserving `loadPluginConfig`'s never-throw contract.
+ */
+const lenientStatusArray = z
+  .preprocess((val) => {
+    if (!Array.isArray(val)) return [];
+    return val.filter((entry) => statusValueSchema.safeParse(entry).success);
+  }, z.array(statusValueSchema))
+  .default([]);
+
 const pluginConfigSchema = z
   .object({
     vault: vaultConfigSchema,
     enforcement: enforcementConfigSchema,
     domains: lenientDomainsArray,
+    status: lenientStatusArray,
     archive: archiveConfigSchema,
   })
   .passthrough();

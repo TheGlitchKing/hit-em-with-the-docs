@@ -35,6 +35,20 @@ is missing.
 A markdown file left outside `.documentation/` is invisible to hewtd: not
 indexed, not link-checked, not validated. Don't hand-create `docs/` folders.
 
+### The `status` vocabulary is extensible
+
+`draft`, `active`, `deprecated`, `archived` are built in and always valid. A
+project may declare **additional** values in `.claude/hit-em-with-the-docs.json`
+under `status: []` — e.g. `complete`, `current`, `in_progress`.
+
+Check that config before "fixing" a `status:` you don't recognize. If the value
+is declared there it is correct, and rewriting it to `active` is the drift, not
+the fix. Match the vocabulary the corpus already uses when authoring new docs.
+
+Note that `status` and `implementation_status` are separate fields with separate
+vocabularies — `complete` is a built-in *`implementation_status`* value and leaks
+onto `status` constantly.
+
 ## Updating a doc
 
 Edit the document normally, then:

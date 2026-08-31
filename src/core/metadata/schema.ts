@@ -6,6 +6,11 @@ import {
   type Tier,
 } from '../domains/classifier.js';
 import { KB_ERROR_CODES, formatKbError, type KbErrorCode } from './errors.js';
+import {
+  DOC_STATUS_VALUES,
+  getStatusValues,
+  isValidStatus,
+} from './status-registry.js';
 
 /**
  * Metadata schema for documentation files (the YAML frontmatter contract).
@@ -40,7 +45,7 @@ const coreIdentitySchema = z.object({
   tags: z.array(z.string()).default([]),
 });
 
-const DOC_STATUS_VALUES = ['draft', 'active', 'deprecated', 'archived'] as const;
+
 
 /**
  * Date-shaped value preprocessor: js-yaml auto-converts unquoted `2026-05-14`
@@ -174,12 +179,12 @@ const refineVersionRequired = (data: z.infer<typeof _baseMergedSchema>) =>
   isLifecycleTrackedTier(data.tier) || data.version !== undefined;
 
 /**
- * `status` must be one of DOC_STATUS_VALUES for non-lifecycle-tracked tiers.
+ * `status` must be in the ACTIVE vocabulary (built-ins + any project-declared
+ * extras) for non-lifecycle-tracked tiers.
  * Lifecycle-tracked tiers use their own status enums (free-form at this layer).
  */
 const refineStatusEnum = (data: z.infer<typeof _baseMergedSchema>) =>
-  isLifecycleTrackedTier(data.tier) ||
-  (DOC_STATUS_VALUES as readonly string[]).includes(data.status);
+  isLifecycleTrackedTier(data.tier) || isValidStatus(data.status);
 
 /**
  * Fact-tier required fields: id, confidence (enum), last_verified, provenance (≥1).
@@ -271,10 +276,12 @@ export const MetadataSchema = _baseMergedSchema
     message: 'version is required unless tier is plan, fact, incident-narrative, or incident-facts',
     path: ['version'],
   })
-  .refine(refineStatusEnum, {
-    message: `status must be one of ${DOC_STATUS_VALUES.join('|')} for non-lifecycle-tracked tiers`,
+  .refine(refineStatusEnum, () => ({
+    message:
+      `status must be one of ${getStatusValues().join('|')} for non-lifecycle-tracked ` +
+      `tiers (declare extra values in .claude/hit-em-with-the-docs.json "status")`,
     path: ['status'],
-  })
+  }))
   .refine(refineFactRequirements, {
     message: formatKbError(
       KB_ERROR_CODES.FACT_MISSING_ID,
