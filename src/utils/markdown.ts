@@ -21,6 +21,47 @@ export interface MarkdownHeading {
 /**
  * Extract all links from markdown content
  */
+/** A tab counts as four columns when measuring block indentation. */
+function indentWidth(line: string): number {
+  let width = 0;
+  for (const ch of line) {
+    if (ch === ' ') width += 1;
+    else if (ch === '\t') width += 4;
+    else break;
+  }
+  return width;
+}
+
+/** `- item`, `* item`, `+ item`, `1. item`, `2) item`. */
+function isListItem(line: string): boolean {
+  return /^\s*(?:[-*+]|\d+[.)])\s+/.test(line);
+}
+
+interface Fence {
+  marker: '`' | '~';
+  length: number;
+}
+
+/**
+ * A fence opener: three or more backticks or tildes, indented at most three
+ * columns. At four it is indented code, not a fence.
+ */
+function openingFence(line: string): Fence | null {
+  const m = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+  const run = m?.[1];
+  if (!run) return null;
+  const marker = run[0] as '`' | '~';
+  return { marker, length: run.length };
+}
+
+/**
+ * A fence closes only on the same marker, at least as long as the opener, with
+ * nothing after it. `````` inside a ``` block is content, not a close.
+ */
+function closesFence(line: string, fence: Fence): boolean {
+  return new RegExp(`^ {0,3}\\${fence.marker}{${fence.length},}\\s*$`).test(line);
+}
+
 export function extractLinks(content: string): MarkdownLink[] {
   const links: MarkdownLink[] = [];
   const lines = content.split('\n');
@@ -28,27 +69,61 @@ export function extractLinks(content: string): MarkdownLink[] {
   // Match markdown links: [text](url) or [text](url "title")
   const linkRegex = /\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g;
 
-  // Link-shaped text inside a fenced block or a code span is an EXAMPLE, not a link.
-  // Reporting it as broken trains people to ignore the broken-link count. Both are blanked
-  // with spaces rather than removed, so `startIndex` and `lineNumber` stay accurate for
-  // every real link on the same line.
-  let inFence = false;
-  let fenceMarker = '';
+  // Link-shaped text inside code is an EXAMPLE, not a link. Reporting it as broken
+  // trains people to ignore the broken-link count (#20). Three shapes of code:
+  // fenced blocks, inline spans, and indented blocks.
+  //
+  // Spans are blanked with spaces rather than removed, so `startIndex` and
+  // `lineNumber` stay accurate for every real link sharing the line.
+  let fence: Fence | null = null;
+  let inIndentedCode = false;
+  let inList = false;
+  let prevBlank = true; // start of document counts as a blank line
 
   lines.forEach((rawLine, lineIndex) => {
-    const fence = /^\s*(`{3,}|~{3,})/.exec(rawLine);
     if (fence) {
-      const marker = fence[1] ?? '';
-      if (!inFence) {
-        inFence = true;
-        fenceMarker = marker[0] ?? '`';
-      } else if (marker[0] === fenceMarker) {
-        inFence = false;
-        fenceMarker = '';
-      }
-      return; // the fence delimiter line itself holds no links
+      if (closesFence(rawLine, fence)) fence = null;
+      return; // fence body and its delimiters hold no links
     }
-    if (inFence) return;
+
+    const opener = openingFence(rawLine);
+    if (opener) {
+      fence = opener;
+      inIndentedCode = false;
+      return;
+    }
+
+    const blank = rawLine.trim() === '';
+    if (blank) {
+      prevBlank = true;
+      return; // a blank line neither opens nor closes a list
+    }
+
+    const indent = indentWidth(rawLine);
+    const listItem = isListItem(rawLine);
+
+    // An indented code block needs four columns AND a preceding blank line — it
+    // cannot interrupt a paragraph. Once open it runs until a line dedents.
+    //
+    // The list check is what keeps this from eating real links. Inside a list,
+    // four columns is ordinary continuation content — a nested item, or a second
+    // paragraph of the parent item — and treating it as code silently drops
+    // every link in it. That failure is worse than the one being fixed: #20
+    // reported links that were not broken, this would hide links that are.
+    if (indent >= 4 && !listItem && !inList && (prevBlank || inIndentedCode)) {
+      inIndentedCode = true;
+      prevBlank = false;
+      return;
+    }
+
+    if (indent < 4) {
+      inIndentedCode = false;
+      // A flush-left line that is not a list item ends the list block.
+      inList = listItem;
+    } else if (listItem) {
+      inList = true;
+    }
+    prevBlank = false;
 
     // Blank out inline code spans (`...`, ``...``), preserving offsets.
     const line = rawLine.replace(/(`+)(?:(?!\1)[\s\S])*?\1/g, (m) => ' '.repeat(m.length));
@@ -76,7 +151,6 @@ export function extractLinks(content: string): MarkdownLink[] {
       }
       links.push(link);
     }
-    // Reset regex lastIndex for next line
     linkRegex.lastIndex = 0;
   });
 
