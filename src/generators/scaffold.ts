@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { type Domain } from '../core/domains/constants.js';
 import { getAllDomains, getDomainDefinition } from '../core/domains/registry.js';
+import { getStatusValues } from '../core/metadata/status-registry.js';
 import { generateRootIndex } from './index-generator.js';
 import { generateRootRegistry } from './registry-generator.js';
 import { generateDomainIndex } from './templates/domain-index.js';
@@ -296,7 +297,7 @@ Every document should include:
 title: "Document Title"
 tier: guide|standard|example|reference|admin
 domains: [primary-domain]
-status: draft|active|deprecated|archived
+status: ${getStatusValues().join('|')}
 last_updated: 'YYYY-MM-DD'
 version: '1.0.0'
 ---

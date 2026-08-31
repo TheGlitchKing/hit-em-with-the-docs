@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Project-configurable `status` vocabulary
+
+`status` was validated against a hardcoded four-value enum (`draft|active|
+deprecated|archived`). A project with its own long-standing lifecycle words had
+no way to declare them, so every one of its docs failed validation — and new
+docs scaffolded toward `active` while the corpus stayed on its own vocabulary.
+Steady drift, with no single place declaring what this project's statuses are.
+
+Extra values now go in `.claude/hit-em-with-the-docs.json`:
+
+```json
+{ "status": ["complete", "current", "in_progress"] }
+```
+
+They are honored by `integrate`, `audit`, `metadata-sync`, and the metadata
+guide `init` scaffolds.
+
+The list is **additive — it extends the built-ins, it cannot replace them.** The
+built-ins are load-bearing rather than stylistic: `archive` writes
+`status: archived`, `unarchive` writes `status: active`, the `audit` deprecation
+nudge keys on `status: deprecated`, and every generated `INDEX.md`/`REGISTRY.md`
+is emitted `status: active`. A replace-mode config would let a project
+invalidate hewtd's own output with its own settings, so replace mode does not
+exist.
+
+New `core/metadata/status-registry.ts` mirrors the custom-domain registry: a
+cached singleton resolving built-ins + config at first use, with
+`resetStatusRegistry()` for tests. `DOC_STATUS_VALUES` moves there and is still
+re-exported from `core/metadata/schema.ts` — no public API change.
+
+A status outside the active vocabulary is still rejected, and the message now
+names both the active set and the file to declare more in. Lifecycle-tracked
+tiers (`plan`, `fact`, `incident-narrative`, `incident-facts`) carry their own
+per-tier status enums and are untouched.
+
+Closes [#18](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/18).
+
+### Added
+
+- ESLint config (`.eslintrc.json`) and the CI lint gate restored — `npm run lint`
+  had never been able to run. Four findings across 13.6k lines, all benign.
+  Closes [#16](https://github.com/TheGlitchKing/hit-em-with-the-docs/issues/16).
+
 ## [2.8.2] — 2026-08-08
 
 Bugfix. Three defects that all inflated the broken-link count on documentation

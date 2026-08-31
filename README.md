@@ -1173,7 +1173,7 @@ Every document includes YAML frontmatter with up to 22 fields:
 title: "Document Title"                    # Human-readable title
 tier: guide                                # guide|standard|example|reference|admin
 domains: [primary-domain]                  # Which category/categories it belongs to
-status: active                             # draft|active|deprecated|archived
+status: active                             # draft|active|deprecated|archived (extensible)
 ---
 ```
 
@@ -1214,6 +1214,52 @@ load_priority: 8                          # Override default domain priority (1-
 prerequisites: ["setup.md", "auth.md"]    # Required reading
 difficulty: intermediate                  # beginner|intermediate|advanced
 ```
+
+### Custom Status Vocabulary
+
+`status` is validated against a vocabulary. Four values are **built-in** and always
+valid: `draft`, `active`, `deprecated`, `archived`.
+
+A project that has adopted its own lifecycle words can declare them in
+`.claude/hit-em-with-the-docs.json` under a `status: []` array:
+
+```json
+{
+  "status": ["complete", "current", "in_progress"]
+}
+```
+
+Those values then pass validation in `integrate`, `audit`, and `metadata-sync`, and
+`hewtd init` scaffolds the full vocabulary into the generated metadata guide.
+
+The list is **additive — it extends the built-ins, it cannot replace them.** That is
+deliberate: the built-ins are load-bearing, not a style preference. `hewtd archive`
+writes `status: archived`, `hewtd unarchive` writes `status: active`, the deprecation
+nudge in `audit` keys on `status: deprecated`, and every generated `INDEX.md` /
+`REGISTRY.md` is emitted with `status: active`. A replace-mode config would let a
+project invalidate hewtd's own output with its own settings.
+
+Values must be lowercase, separated by `-` or `_`. A malformed entry is dropped with
+the rest of the config still loading — the config loader never throws. A status
+outside the active vocabulary is still rejected, and the error names both the active
+set and the file to declare more in:
+
+```
+status must be one of draft|active|deprecated|archived|complete|current for
+non-lifecycle-tracked tiers (declare extra values in
+.claude/hit-em-with-the-docs.json "status")
+```
+
+> [!NOTE]
+> `status` and `implementation_status` are different fields with different
+> vocabularies. `complete` is a built-in *`implementation_status`* value
+> (`planned|in_progress|complete|deprecated`) and is a common source of drift onto
+> `status`. If you want `complete` on `status`, declare it — the two fields do not
+> share a vocabulary.
+
+**Lifecycle-tracked tiers are unaffected.** `plan`, `fact`, `incident-narrative`, and
+`incident-facts` carry their own per-tier status enums and never consult this
+vocabulary.
 
 ### Classification Algorithm
 
