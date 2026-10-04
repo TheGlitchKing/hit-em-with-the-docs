@@ -82,10 +82,18 @@ export async function migrateIncident(
 
   // Derive the target folder name. Priority:
   //   1. Frontmatter `id:` (if YYYY-MM-DD-slug shape)
-  //   2. The flat file's basename minus `.md`
+  //   2. The flat file's basename, normalized to YYYY-MM-DD-<slug> (#39):
+  //      `incident-2026-09-28-x` becomes `2026-09-28-x`, and an undated name
+  //      takes its date from frontmatter `date:` when there is one.
   const flatBase = basename(flatFilePath, '.md');
   const idFromFrontmatter = typeof fm.id === 'string' ? fm.id : undefined;
+  const fmDate = normalizeDate(fm.date);
   const folderSlug =
+    idFromFrontmatter && /^\d{4}-\d{2}-\d{2}-[a-z0-9-]+$/.test(idFromFrontmatter)
+      ? idFromFrontmatter
+      : datedSlug(flatBase, fmDate);
+  // 2.3.0 named folders after the raw basename; keep finding those.
+  const legacySlug =
     idFromFrontmatter && /^\d{4}-\d{2}-\d{2}-[a-z0-9-]+$/.test(idFromFrontmatter)
       ? idFromFrontmatter
       : flatBase;
@@ -97,7 +105,7 @@ export async function migrateIncident(
   const evidencePath = join(targetFolder, 'evidence');
 
   // Legacy 2.3.0 location: <source-parent>/<slug>/
-  const legacyTargetFolder = join(dirname(flatFilePath), folderSlug);
+  const legacyTargetFolder = join(dirname(flatFilePath), legacySlug);
   const legacyNarrativePath = join(legacyTargetFolder, 'narrative.md');
 
   // Build narrative.md frontmatter — promote/normalize fields, set tier.
@@ -111,7 +119,12 @@ export async function migrateIncident(
         ? fm.last_updated
         : new Date().toISOString().slice(0, 10),
     id: folderSlug,
-    date: deriveDateFromSlug(folderSlug) ?? fm.date ?? folderSlug.slice(0, 10),
+    // Never a slice of the slug: that wrote `date: incident-2` (#39).
+    date:
+      deriveDateFromSlug(folderSlug) ??
+      fmDate ??
+      normalizeDate(fm.last_updated) ??
+      new Date().toISOString().slice(0, 10),
     severity: typeof fm.severity === 'string' ? fm.severity : 'medium',
     resolution_status:
       typeof fm.resolution_status === 'string' ? fm.resolution_status : 'resolved',
@@ -204,4 +217,28 @@ export async function migrateIncident(
 function deriveDateFromSlug(slug: string): string | undefined {
   const m = slug.match(/^(\d{4}-\d{2}-\d{2})/);
   return m ? m[1] : undefined;
+}
+
+/**
+ * `<prefix>-YYYY-MM-DD-<rest>` → `YYYY-MM-DD-<rest>` (the prefix is dropped,
+ * or kept as the slug when nothing follows the date). An undated name gets
+ * `fallbackDate` prepended when one is known, else stays as-is.
+ */
+function datedSlug(name: string, fallbackDate: string | undefined): string {
+  const m = name.match(/^(.*?)-?(\d{4}-\d{2}-\d{2})-?(.*)$/);
+  if (m) {
+    const [, prefix, date, rest] = m;
+    const slug = rest || prefix;
+    return slug ? `${date}-${slug}` : date!;
+  }
+  return fallbackDate ? `${fallbackDate}-${name}` : name;
+}
+
+/** YYYY-MM-DD from a string or a js-yaml Date, else undefined. */
+function normalizeDate(value: unknown): string | undefined {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  return undefined;
 }

@@ -286,4 +286,42 @@ title: Bare
     expect(narrative).toContain('resolution_status: resolved');
     expect(narrative).toContain('- unknown');
   });
+
+  describe('dates and folder names (#39)', () => {
+    const plan = async (name: string, frontmatter = 'title: X') => {
+      const path = join(tmpDir, name);
+      await writeFile(path, `---\n${frontmatter}\n---\n\n# X\n`, 'utf-8');
+      const result = await migrateIncident({ flatFilePath: path, vaultRoot, dryRun: true });
+      return {
+        folder: result.targetFolder.slice(join(vaultRoot, 'incidents').length + 1),
+        date: /^date: '?([^'\n]*)'?$/m.exec(result.narrativeContent)?.[1],
+      };
+    };
+
+    it('takes the date from inside a prefixed name, and drops the prefix', async () => {
+      expect(await plan('incident-2026-09-28-lab-vcp-and-overnight.md')).toEqual({
+        folder: '2026-09-28-lab-vcp-and-overnight',
+        date: '2026-09-28',
+      });
+    });
+
+    it('keeps the prefix as the slug when nothing follows the date', async () => {
+      expect(await plan('postmortem-2026-05-14.md')).toEqual({
+        folder: '2026-05-14-postmortem',
+        date: '2026-05-14',
+      });
+    });
+
+    it('dates an undated name from frontmatter date:', async () => {
+      expect(await plan('vault-outage.md', "title: X\ndate: '2026-03-02'")).toEqual({
+        folder: '2026-03-02-vault-outage',
+        date: '2026-03-02',
+      });
+    });
+
+    it('never writes a slice of the name as the date', async () => {
+      const { date } = await plan('vault-outage.md', "title: X\nlast_updated: '2026-04-01'");
+      expect(date).toBe('2026-04-01');
+    });
+  });
 });

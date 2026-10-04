@@ -5,7 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [2.10.0] — 2026-10-03
 
 Gotchas found during a working session now have a home: the knowledge base
-(#40, first step). No schema change and nothing to install.
+(#40, first step), with no schema change and nothing to install. Plus seven
+fixes from the first real use of the knowledge base in another project (#39).
 
 ### Gotchas are recorded as knowledge-base facts before merge
 
@@ -22,6 +23,38 @@ get a warning (never a denial). It is matched at command position outside
 heredoc bodies, like the deletion check, so a PR body or commit message that
 mentions those commands does not trigger it. Merges done outside Claude (GitHub
 UI, a terminal) are not covered.
+
+### Knowledge-base fixes from a first real use (#39)
+
+- **The skill and session brief now describe the knowledge base.** Neither
+  mentioned it, so an agent asked to "log this in the KB" wrote prose into a
+  domain doc. The `documentation-lifecycle` skill has a "Knowledge base" section
+  (vault location, the three tiers, the incident → facts → symptoms → audit
+  flow), and the brief has one line pointing at it.
+- **`docs/` ships in the package.** `README.md` links `docs/LLM-GUIDE.md` and
+  `docs/knowledge-base-primitives.md`, but `files` in `package.json` never
+  listed `docs`, so the published tarball had none of them.
+- **`migrate-incident` writes a real date.** For `incident-2026-09-28-x.md` it
+  wrote `date: incident-2` (the first ten characters of the name) and a folder
+  named `incident-2026-09-28-x`. The date is now found anywhere in the name and
+  the folder is `2026-09-28-x`, matching the `YYYY-MM-DD-<slug>` id convention.
+  An undated name takes its date from frontmatter `date:`, then `last_updated`,
+  then today; it is never a slice of the name.
+- **`integrate` respects a declared domain.** The target folder came only from
+  keyword detection, so a doc declaring `domains: [troubleshooting]` could land
+  in another folder. The order is now: the new `--domain <id>` flag, then the
+  doc's first declared domain, then detection.
+- **`archive` no longer counts generated indexes as inbound links.** Rows in the
+  root and domain `INDEX.md` / `REGISTRY.md` are rebuilt by the archive's own
+  reindex, but they blocked the move, and the only way past was `--force`, which
+  also switched the check off for real links. A hand-written sub-feature
+  `INDEX.md` still counts.
+- **`archive` and `unarchive` accept a project-relative path.**
+  `.documentation/api/x.md` was read as relative to the docs folder and reported
+  as not found. Project-relative, docs-relative and absolute paths now all work.
+- **`audit-facts --run-verify-all`** re-checks every fact that has a
+  `verify_command` and exits 1 if any fail (`/hit-em-with-the-docs:audit-facts
+  all` in the slash command).
 
 ## [2.9.0] — 2026-08-31
 

@@ -1,7 +1,7 @@
 ---
 description: Audit knowledge-base facts for staleness; optionally re-verify a specific fact
 allowed-tools: Bash(npx:*)
-argument-hint: "[fact-id-to-verify]"
+argument-hint: "[fact-id-to-verify | all]"
 ---
 
 Arguments: $ARGUMENTS
@@ -13,6 +13,10 @@ If `$ARGUMENTS` is empty:
   1. Re-verify it: `/hit-em-with-the-docs:audit-facts <fact-id>`
   2. Mark it weakened (if the user knows it's no longer reliable): edit the fact's frontmatter `status: weakened`
   3. Open an incident to investigate the divergence (use `/hit-em-with-the-docs:migrate-incident` or create a new incident folder)
+
+If `$ARGUMENTS` is `all`:
+- Run `npx --no @theglitchking/hit-em-with-the-docs audit-facts --run-verify-all --json` and parse the result (an array of per-fact results; only facts with a `verify_command` are run).
+- Report how many passed and list each failure with its exit code, stdout and stderr, then offer the same three choices as for a single failed fact below.
 
 If `$ARGUMENTS` is a fact id:
 - Run `npx --no @theglitchking/hit-em-with-the-docs audit-facts --run-verify "$ARGUMENTS" --json` and parse the result.
