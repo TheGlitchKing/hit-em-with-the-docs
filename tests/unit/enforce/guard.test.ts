@@ -131,6 +131,32 @@ describe('guard — warns without blocking', () => {
   });
 });
 
+describe('guard — reminds about gotchas when a PR is opened or merged', () => {
+  it('warns on gh pr create and gh pr merge', () => {
+    for (const command of [
+      'gh pr create --title "x" --body "y"',
+      'gh pr merge 41 --squash',
+      'git push -u origin feat/x && gh pr create --fill',
+      'GH_TOKEN=abc gh pr merge --auto',
+    ]) {
+      const d = ev({ toolName: 'Bash', command });
+      expect(d.action).toBe('warn');
+      if (d.action === 'warn') expect(d.context).toContain('gotcha');
+    }
+  });
+
+  it('stays silent on other gh pr commands and on prose that mentions them', () => {
+    for (const command of [
+      'gh pr view 41',
+      'gh pr list',
+      'echo gh-pr-create',
+      "git commit -F - <<'MSG'\nfeat: warn on\ngh pr merge\nMSG",
+    ]) {
+      expect(ev({ toolName: 'Bash', command }).action).toBe('allow');
+    }
+  });
+});
+
 describe('guard — archived content is referenceable, never concrete', () => {
   it('warns when editing an archived doc, at any depth', () => {
     for (const f of [
@@ -364,7 +390,7 @@ describe('guard — deletion is matched structurally, not textually (#21, #26)',
     });
 
     it('does not warn about an archive move merely quoted in a heredoc', () => {
-      const command = [`gh pr create --body "$(cat <<'EOF'`, 'mv x archive/y', 'EOF', ')"'].join(
+      const command = [`gh issue comment 1 --body "$(cat <<'EOF'`, 'mv x archive/y', 'EOF', ')"'].join(
         '\n'
       );
       expect(bash(command)).toBe('allow');
