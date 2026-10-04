@@ -284,6 +284,7 @@ program
   .option('-a, --auto', 'Auto mode (no prompts)', false)
   .option('--dry-run', 'Preview without writing', false)
   .option('-f, --force', 'Force integration even with duplicates', false)
+  .option('-d, --domain <domain>', "Target domain (default: the doc's first declared domain, else detected)")
   .action(async (file, options) => {
     const docsPath = resolve(process.cwd(), options.path);
     const filePath = resolve(process.cwd(), file);
@@ -294,6 +295,7 @@ program
       auto: options.auto,
       dryRun: options.dryRun,
       force: options.force,
+      domain: options.domain,
     });
 
     if (!result.success) {
@@ -719,6 +721,7 @@ program
   .command('audit-facts')
   .description('Report facts past last_verified + audit_window_days')
   .option('--run-verify <fact-id>', 'Execute the fact\'s verify_command and update last_verified on success')
+  .option('--run-verify-all', 'Run --run-verify for every fact that has a verify_command; exit 1 if any fail', false)
   .option('--window <days>', 'Override audit_window_days', undefined)
   .option('--json', 'Output as JSON', false)
   .action(async (options) => {
@@ -737,6 +740,28 @@ program
       : config.vault.audit_window_days;
 
     const index = await buildCiterIndex({ projectRoot, vaultRoot, playbookGlobs });
+
+    // --run-verify-all path (#39): one command for a periodic re-check.
+    if (options.runVerifyAll) {
+      const results = [];
+      for (const fact of [...index.facts.values()].sort((a, b) => a.id.localeCompare(b.id))) {
+        const r = await runFactVerify({ fact, vaultRoot });
+        if (r.executed) results.push(r);
+      }
+      const failed = results.filter((r) => !r.updated);
+      if (options.json) {
+        logger.info(JSON.stringify(results, null, 2));
+      } else {
+        logger.header(`Verified ${results.length} fact(s) with a verify_command:`);
+        for (const r of results) {
+          logger.info(`  ${r.updated ? '✓' : '✗'} ${r.factId}  (exit ${r.exitCode})`);
+        }
+        if (failed.length > 0) {
+          logger.error(`${failed.length} failed; last_verified not updated for those.`);
+        }
+      }
+      process.exit(failed.length > 0 ? 1 : 0);
+    }
 
     // --run-verify path
     if (options.runVerify) {

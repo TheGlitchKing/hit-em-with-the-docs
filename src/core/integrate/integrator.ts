@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { parseFrontmatter, setFrontmatter } from '../../utils/frontmatter.js';
 import { pathExists, findMarkdownFiles } from '../../utils/glob.js';
 import { detectDomain } from '../domains/detector.js';
+import { isValidDomain } from '../domains/registry.js';
 import { classifyTier } from '../domains/classifier.js';
 import { generateMetadata, mergeMetadata } from '../metadata/generator.js';
 import { type PartialDocumentMetadata } from '../metadata/schema.js';
@@ -18,6 +19,8 @@ export interface IntegrateOptions {
   dryRun?: boolean;
   force?: boolean;
   silent?: boolean;
+  /** Target domain, overriding the frontmatter `domains:` and detection (#39). */
+  domain?: string;
 }
 
 export interface IntegrateResult {
@@ -51,6 +54,7 @@ export async function integrateDocument(
     dryRun = false,
     force = false,
     silent = false,
+    domain: domainOverride,
   } = options;
 
   const result: IntegrateResult = {
@@ -69,6 +73,11 @@ export async function integrateDocument(
     // Check if file exists
     if (!(await pathExists(filePath))) {
       result.error = 'File does not exist';
+      return result;
+    }
+
+    if (domainOverride !== undefined && !isValidDomain(domainOverride)) {
+      result.error = `Unknown domain: ${domainOverride}. \`hewtd domain list\` shows the valid ids.`;
       return result;
     }
 
@@ -130,8 +139,23 @@ export async function integrateDocument(
     const finalMetadata = mergeMetadata(existingMetadata, generated);
     result.metadata = finalMetadata;
 
-    // Determine target path
-    const targetDomain = result.domain ?? 'features';
+    // Determine target path. An explicit choice beats keyword detection:
+    // `--domain`, then the doc's own first declared domain, then detection.
+    // Before #39 the declared domain was kept in the metadata but ignored
+    // here, so a doc could land in a folder its own frontmatter disagreed with.
+    const declared = existingMetadata.domains?.[0];
+    const targetDomain =
+      domainOverride ??
+      (typeof declared === 'string' && isValidDomain(declared) ? declared : undefined) ??
+      result.domain ??
+      'features';
+    result.domain = targetDomain as Domain;
+    if (domainOverride) {
+      finalMetadata.domains = [
+        domainOverride,
+        ...(finalMetadata.domains ?? []).filter((d) => d !== domainOverride),
+      ];
+    }
     const fileName = basename(filePath);
     const targetPath = join(docsPath, targetDomain, fileName);
     result.targetPath = targetPath;

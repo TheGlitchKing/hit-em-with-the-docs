@@ -94,6 +94,38 @@ login security, and access control for the service.
     expect(indexContent).not.toContain('*No documents in this domain yet.*');
   });
 
+  describe('target domain (#39)', () => {
+    // Keyword detection alone would send this to `security`.
+    const securityProse = `# Login outage
+
+Authentication, authorization, OAuth, JWT tokens, login security and access control.
+`;
+    const integrate = async (frontmatter: string, domain?: string) => {
+      const srcPath = join(tmpProject, 'login-outage.md');
+      await writeFile(srcPath, `---\ntitle: Login outage\n${frontmatter}---\n\n${securityProse}`, 'utf-8');
+      return integrateDocument({ filePath: srcPath, docsPath, force: true, silent: true, dryRun: true, domain });
+    };
+
+    it('uses the first declared domain over keyword detection', async () => {
+      const result = await integrate('domains: [troubleshooting]\ntier: reference\n');
+      expect(result.domain).toBe('troubleshooting');
+      expect(result.targetPath).toBe(join(docsPath, 'troubleshooting', 'login-outage.md'));
+    });
+
+    it('lets --domain override both, and puts it first in domains:', async () => {
+      const result = await integrate('domains: [troubleshooting]\n', 'procedures');
+      expect(result.targetPath).toBe(join(docsPath, 'procedures', 'login-outage.md'));
+      expect(result.metadata?.domains?.[0]).toBe('procedures');
+    });
+
+    it('still detects when nothing is declared, and rejects an unknown --domain', async () => {
+      expect((await integrate('')).domain).toBe('security');
+      const bad = await integrate('', 'not-a-domain');
+      expect(bad.success).toBe(false);
+      expect(bad.error).toMatch(/Unknown domain: not-a-domain/);
+    });
+  });
+
   it('regenerateIndexes() rebuilds domain + root indexes from disk', async () => {
     // Drop two documents straight into a domain — no integrate, no reindex.
     await writeFile(

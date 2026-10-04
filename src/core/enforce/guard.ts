@@ -267,10 +267,17 @@ function isGeneratedIndex(
   docsDir: string,
   domains?: readonly string[]
 ): boolean {
-  if (!GENERATED_FILES.has(basename(filePath))) return false;
-
   const rel = relativeToDocs(filePath, docsDir);
-  if (rel === null) return false;
+  return rel !== null && isGeneratedIndexRel(rel, domains);
+}
+
+/**
+ * `isGeneratedIndex` for a path already relative to the docs root. Exported for
+ * the archive link guard, whose link graph is docs-relative (#39).
+ */
+export function isGeneratedIndexRel(docsRelPath: string, domains?: readonly string[]): boolean {
+  const rel = normalize(docsRelPath);
+  if (!GENERATED_FILES.has(basename(rel))) return false;
 
   const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
   if (dir === '') return true; // <docs>/INDEX.md — the root index

@@ -31,7 +31,8 @@
     "action.yml",
     "README.md",
     "LICENSE",
-    "MIGRATION.md"
+    "MIGRATION.md",
+    "docs"
   ],
   "scripts": {
     "build": "tsc",

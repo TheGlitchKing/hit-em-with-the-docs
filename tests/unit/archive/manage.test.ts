@@ -164,4 +164,39 @@ describe('archiveDoc / unarchiveDoc', () => {
     expect(clobber.ok).toBe(false);
     expect(clobber.errors.join(' ')).toMatch(/already exists/i);
   });
+  describe('#39', () => {
+    it('does not count links from generated indexes, but still counts a hand-written one', async () => {
+      await writeDoc('api/old.md');
+      // Generated root and domain indexes: rebuilt by archive's own reindex.
+      await writeFile(join(docsPath, 'INDEX.md'), '# Index\n[old](api/old.md)\n', 'utf-8');
+      await writeFile(join(docsPath, 'api/REGISTRY.md'), '# Registry\n[old](old.md)\n', 'utf-8');
+
+      const res = await archiveDoc({ projectRoot: tmpDir, docsPath, file: 'api/old.md', dryRun: true });
+      expect(res.inboundLinks).toEqual([]);
+
+      // A sub-feature INDEX.md is prose hewtd never writes: it still blocks.
+      await writeDoc('api/v2/INDEX.md', FM().replace('# Doc\n', '# V2\n[old](../old.md)\n'));
+      const blocked = await archiveDoc({ projectRoot: tmpDir, docsPath, file: 'api/old.md' });
+      expect(blocked.action).toBe('blocked');
+      expect(blocked.inboundLinks.map((l) => l.source)).toEqual(['api/v2/INDEX.md']);
+    });
+
+    it('accepts project-relative, docs-relative and absolute paths, for archive and unarchive', async () => {
+      for (const file of ['.documentation/api/a.md', 'api/b.md', join(docsPath, 'api/c.md')]) {
+        const name = file.slice(-4);
+        await writeDoc(`api/${name}`);
+        const res = await archiveDoc({ projectRoot: tmpDir, docsPath, file, today: '2026-06-09' });
+        expect(res.ok, file).toBe(true);
+        expect(res.from).toBe(`api/${name}`);
+      }
+
+      const back = await unarchiveDoc({
+        projectRoot: tmpDir,
+        docsPath,
+        file: '.documentation/archive/api/a.md',
+      });
+      expect(back.ok).toBe(true);
+      expect(await exists(join(docsPath, 'api/a.md'))).toBe(true);
+    });
+  });
 });

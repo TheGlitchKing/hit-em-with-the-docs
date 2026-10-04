@@ -1,6 +1,6 @@
 ---
 name: documentation-lifecycle
-description: Create, update, retire, or reorganize documentation in a project managed by hit-em-with-the-docs (a `.documentation/` tree with domain folders). Use when writing a new doc, updating an existing one, deleting/deprecating/archiving a doc, fixing a broken docs link, wondering where a doc belongs, or when an INDEX.md/REGISTRY.md looks out of date. Also use when a tool call was denied by the hewtd lifecycle guard.
+description: Create, update, retire, or reorganize documentation in a project managed by hit-em-with-the-docs (a `.documentation/` tree with domain folders). Use when writing a new doc, updating an existing one, deleting/deprecating/archiving a doc, fixing a broken docs link, wondering where a doc belongs, or when an INDEX.md/REGISTRY.md looks out of date. Also use when a tool call was denied by the hewtd lifecycle guard, or when logging an incident, recording a fact or gotcha, or otherwise working in the knowledge base (`.documentation/knowledge-base/`).
 ---
 
 # Documentation lifecycle (hit-em-with-the-docs)
@@ -26,7 +26,8 @@ hewtd integrate path/to/new-doc.md          # classifies + moves + registers it
 hewtd integrate path/to/new-doc.md --dry-run  # preview the chosen domain first
 ```
 
-`integrate` picks the domain by keyword-matching the content, moves the file
+`integrate` picks the domain from `--domain <id>` if given, else the doc's own
+first `domains:` entry, else by keyword-matching the content. It moves the file
 into `.documentation/<domain>/`, stamps frontmatter (`status: draft`, `tier:
 guide`, `version: 1.0.0`, `last_updated`, `word_count`), and regenerates the
 indexes. It never overwrites frontmatter you wrote yourself — it only fills what
@@ -114,6 +115,41 @@ hewtd unarchive .documentation/archive/api/old-guide.md
 Editing a file under `archive/` is not destructive, but it is almost always a
 mistake — the edit lands in a subtree nothing reads, so it changes nothing anyone
 will see. The guard warns when you try.
+
+## The knowledge base
+
+Alongside the domain docs, `.documentation/knowledge-base/` (the vault; its
+location is `vault.root` in `.claude/hit-em-with-the-docs.json`) holds
+operational knowledge in three tiers, each with a template in
+`templates/knowledge-base/`:
+
+- **Incidents:** `incidents/YYYY-MM-DD-<slug>/` holding `narrative.md` (tier
+  `incident-narrative`: what happened) and `facts.md` (tier `incident-facts`:
+  which facts it produced, strengthened or weakened).
+- **Facts:** `facts/<id>.md` (tier `fact`), one atomic claim each, with
+  `confidence`, `last_verified`, `provenance` and ideally a `verify_command`.
+  Gotchas are facts tagged `gotcha`, with an `## Instead` section.
+- **Symptoms:** a `symptoms:` block in a playbook's frontmatter maps an alert
+  name, user phrase or error pattern to a section of the playbook, and `cites:`
+  the facts that step relies on. `symptoms/INDEX.md` is generated from them.
+
+Logging an incident:
+
+```bash
+# 1. write incidents/<YYYY-MM-DD-slug>/narrative.md (or convert an old flat file:)
+hewtd migrate-incident path/to/old-incident.md --dry-run
+# 2. turn the narrative into facts (the slash command proposes, this writes)
+/hit-em-with-the-docs:extract-facts incidents/<YYYY-MM-DD-slug>/
+# 3. give the playbook that handles it a symptoms: entry (playbook-symptoms
+#    template), then cite the fact from it
+hewtd cite <fact-id> -f <playbook.md> --error-pattern '<pattern>'
+# 4. check it
+hewtd maintain && hewtd audit --strict
+```
+
+`hewtd audit-facts` lists facts past their review window;
+`--run-verify <id>` re-checks one and `--run-verify-all` re-checks every fact
+with a `verify_command`. `/hit-em-with-the-docs:help` covers the rest.
 
 ## Checking the tree
 

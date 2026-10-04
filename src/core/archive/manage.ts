@@ -100,7 +100,7 @@ export async function archiveDoc(
   const today = input.today ?? formatDate(new Date());
   const errors: string[] = [];
 
-  const fromRel = toDocsRelative(docsPath, input.file);
+  const fromRel = toDocsRelative(docsPath, input.file, projectRoot);
 
   if (!fromRel.endsWith('.md')) {
     errors.push(`Not a markdown file: ${fromRel}`);
@@ -188,7 +188,7 @@ export async function unarchiveDoc(
   const { projectRoot, docsPath, dryRun = false } = input;
   const errors: string[] = [];
 
-  const fromRel = toDocsRelative(docsPath, input.file);
+  const fromRel = toDocsRelative(docsPath, input.file, projectRoot);
   if (!fromRel.startsWith(`${ARCHIVE_DIR}/`)) {
     errors.push(`"${fromRel}" is not under ${ARCHIVE_DIR}/ — nothing to unarchive.`);
     return { ok: false, errors, action: 'rejected' };
