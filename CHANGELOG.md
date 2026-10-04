@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.10.0] — 2026-10-03
+
+Gotchas found during a working session now have a home: the knowledge base
+(#40, first step). No schema change and nothing to install.
+
+### Gotchas are recorded as knowledge-base facts before merge
+
+The session brief now states that a command or approach that fails in a
+non-obvious way, once a working fix is found, is recorded as a fact under the
+vault's `facts/` folder, tagged `gotcha`, with an `## Instead` section and a
+`verify_command` where one is possible, and committed before the PR merges.
+Typos and simple wrong paths are excluded. Because gotchas use the existing fact
+tier plus a tag, `facts/INDEX.md` already groups them.
+
+A line read at session start is weakest at the end of a long session, so the
+PreToolUse guard repeats it when it applies: `gh pr create` and `gh pr merge`
+get a warning (never a denial). It is matched at command position outside
+heredoc bodies, like the deletion check, so a PR body or commit message that
+mentions those commands does not trigger it. Merges done outside Claude (GitHub
+UI, a terminal) are not covered.
+
 ## [2.9.0] — 2026-08-31
 
 Seven issues from the backlog. One new capability — two things that were
