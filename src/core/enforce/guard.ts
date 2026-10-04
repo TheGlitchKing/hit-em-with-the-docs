@@ -215,6 +215,17 @@ function deletionTargets(command: string, docsDir: string): string[] {
   return targets;
 }
 
+/**
+ * Does this command open or merge a pull request (`gh pr create` / `gh pr merge`)?
+ * Matched at command position outside heredoc bodies, like deletions, so a PR
+ * body or commit message that mentions these commands does not count.
+ */
+function opensOrMergesPr(command: string): boolean {
+  return shellSegments(stripHeredocBodies(command)).some((segment) =>
+    /^\s*(?:sudo\s+)?(?:\w+=\S*\s+)*gh\s+pr\s+(?:create|merge)\b/.test(segment)
+  );
+}
+
 /** Does this text set `status: deprecated` in frontmatter? */
 function setsDeprecated(text: string): boolean {
   return /^\s*status:\s*['"]?deprecated['"]?\s*$/m.test(text);
@@ -373,6 +384,21 @@ export function evaluate(
           `\`hewtd archive <file>\` records \`archived_on\`, \`archived_from\`, and ` +
           `\`archived_reason\`, which is what makes \`hewtd unarchive\` lossless; a ` +
           `plain move leaves nothing to restore from.`,
+      };
+    }
+
+    // WARN: the session brief says gotchas found during the work are recorded as
+    // knowledge-base facts before merge. Read at session start, that is weakest at
+    // the end of a long session — so it is repeated at the moment it applies.
+    if (opensOrMergesPr(command)) {
+      return {
+        action: 'warn',
+        context:
+          `Before a PR merges, gotchas found during the work belong in the knowledge ` +
+          `base: a non-obvious failure with an observed fix is a fact under the vault's ` +
+          `\`facts/\` folder (default \`${docsDir}/knowledge-base/facts/\`, template ` +
+          `\`fact.template.md\`), tagged \`gotcha\`, with an \`## Instead\` section. ` +
+          `Typos and simple wrong paths are not gotchas.`,
       };
     }
 
